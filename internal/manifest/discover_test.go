@@ -6,17 +6,17 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
-// TestDiscoverFiles verifies file globbing, directory traversal, .esquemaignore filtering, and deterministic sorting.
+// TestDiscoverFiles verifies file globbing, directory traversal, .hclapiignore filtering, and deterministic sorting.
 func TestDiscoverFiles(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
 
 	fileTree := map[string]string{
-		".esquemaignore":           "scratch/\nlocal.hcl\nexperimental/*\n!experimental/preview.hcl\n",
+		".hclapiignore":            "scratch/\nlocal.hcl\nexperimental/*\n!experimental/preview.hcl\n",
 		"routes/users.hcl":         `route "GET /users" {}`,
 		"routes/auth.hcl":          `route "POST /auth" {}`,
 		"routes/local.hcl":         `route "GET /local" {}`,

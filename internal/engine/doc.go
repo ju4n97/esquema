@@ -3,9 +3,9 @@ package engine
 import (
 	"net/http"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/docs"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/docs"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // executeDocs renders interactive API documentation portals using the configured template.

@@ -1,11 +1,11 @@
 ---
 title: OpenAPI overview
-description: How esquema compiles strict OpenAPI 3.1 specifications from your HCL manifests.
+description: How hclapi compiles strict OpenAPI 3.1 specifications from your HCL manifests.
 ---
 
 # OpenAPI overview
 
-esquema inspects your manifests at boot to compile a strict **OpenAPI 3.1** specification.
+hclapi inspects your manifests at boot to compile a strict **OpenAPI 3.1** specification.
 
 You don't need to maintain separate YAML files, write code annotations, or run external generators. Your HCL manifest is the single source of truth for both runtime execution and API documentation.
 
@@ -36,7 +36,7 @@ Routes configured with a `docs` or `spec` step are automatically excluded from t
 
 ## Client SDK generation
 
-Because esquema produces strict OpenAPI 3.1 documents, you can feed exported specifications directly into modern code generators:
+Because hclapi produces strict OpenAPI 3.1 documents, you can feed exported specifications directly into modern code generators:
 
 | Language            | Recommended tools                                 |
 | :------------------ | :------------------------------------------------ |

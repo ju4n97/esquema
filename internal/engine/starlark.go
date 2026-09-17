@@ -7,7 +7,7 @@ import (
 
 	"go.starlark.net/starlark"
 
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 const maxStarlarkSteps = 100_000
@@ -22,7 +22,7 @@ func (e *Engine) executeStarlark(ctx *Context, w http.ResponseWriter, routePatte
 		return p
 	}
 
-	thread := &starlark.Thread{Name: "esquema-starlark-vm"}
+	thread := &starlark.Thread{Name: "hclapi-starlark-vm"}
 	thread.SetMaxExecutionSteps(maxStarlarkSteps)
 
 	starCtx := toStarlarkValue(map[string]any{

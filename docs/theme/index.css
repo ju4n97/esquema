@@ -151,14 +151,14 @@ kbd {
   justify-content: flex-start;
 }
 
-.esquema-nav-actions {
+.hclapi-nav-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-left: auto;
 }
 
-.esquema-button {
+.hclapi-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -176,45 +176,45 @@ kbd {
   cursor: pointer;
 }
 
-.esquema-button--primary {
+.hclapi-button--primary {
   background: var(--rp-c-brand);
   border-color: var(--rp-c-brand);
   color: #21180c;
 }
 
-.esquema-button--primary:hover {
+.hclapi-button--primary:hover {
   background: var(--rp-c-brand-light);
   border-color: var(--rp-c-brand-light);
   color: #21180c;
 }
 
-.esquema-button--primary:active {
+.hclapi-button--primary:active {
   transform: translateY(1px);
 }
 
-.esquema-button--secondary {
+.hclapi-button--secondary {
   background: transparent;
   border-color: var(--rp-c-divider);
   color: var(--rp-c-text-1);
 }
 
-.esquema-button--secondary:hover {
+.hclapi-button--secondary:hover {
   background: var(--rp-c-bg-soft);
   border-color: var(--rp-c-brand);
   color: var(--rp-c-brand-darker);
 }
 
-.esquema-button--secondary:active {
+.hclapi-button--secondary:active {
   transform: translateY(1px);
 }
 
-.esquema-button--ghost {
+.hclapi-button--ghost {
   background: transparent;
   border-color: transparent;
   color: var(--rp-c-text-2);
 }
 
-.esquema-button--ghost:hover {
+.hclapi-button--ghost:hover {
   background: var(--rp-c-bg-soft);
   color: var(--rp-c-text-1);
 }
@@ -331,34 +331,34 @@ kbd {
   );
 }
 
-.dark .esquema-button--primary {
+.dark .hclapi-button--primary {
   background: var(--rp-c-brand);
   border-color: var(--rp-c-brand);
   color: #1b140b;
 }
 
-.dark .esquema-button--primary:hover {
+.dark .hclapi-button--primary:hover {
   background: var(--rp-c-brand-light);
   border-color: var(--rp-c-brand-light);
   color: #1b140b;
 }
 
-.dark .esquema-button--secondary {
+.dark .hclapi-button--secondary {
   border-color: var(--rp-c-divider);
   color: var(--rp-c-text-1);
 }
 
-.dark .esquema-button--secondary:hover {
+.dark .hclapi-button--secondary:hover {
   background: var(--rp-c-bg-soft);
   border-color: var(--rp-c-brand);
   color: var(--rp-c-brand-lighter);
 }
 
-.dark .esquema-button--ghost {
+.dark .hclapi-button--ghost {
   color: var(--rp-c-text-2);
 }
 
-.dark .esquema-button--ghost:hover {
+.dark .hclapi-button--ghost:hover {
   background: var(--rp-c-bg-soft);
   color: var(--rp-c-text-1);
 }

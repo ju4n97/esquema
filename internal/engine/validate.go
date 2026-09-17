@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)

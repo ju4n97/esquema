@@ -12,14 +12,14 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 )
 
-// IgnoreRules holds compiled ignore patterns loaded from a .esquemaignore file.
+// IgnoreRules holds compiled ignore patterns loaded from a .hclapiignore file.
 type IgnoreRules struct {
 	patterns []string
 }
 
-// LoadIgnoreRules reads an optional .esquemaignore file located in the specified root path.
+// LoadIgnoreRules reads an optional .hclapiignore file located in the specified root path.
 func LoadIgnoreRules(rootDir string) (*IgnoreRules, error) {
-	ignorePath := filepath.Join(rootDir, ".esquemaignore")
+	ignorePath := filepath.Join(rootDir, ".hclapiignore")
 
 	f, err := os.Open(ignorePath)
 	if err != nil {
@@ -82,7 +82,7 @@ func (ir *IgnoreRules) Matches(relPath string, isDir bool) bool {
 }
 
 // DiscoverFiles resolves globs or walks directory paths, ignoring hidden files,
-// applying .esquemaignore exclusion rules, and returning deterministically sorted file paths.
+// applying .hclapiignore exclusion rules, and returning deterministically sorted file paths.
 func DiscoverFiles(patterns ...string) ([]string, error) {
 	var matchedFiles []string
 	seen := make(map[string]bool)

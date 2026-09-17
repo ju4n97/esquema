@@ -1,6 +1,6 @@
-# Contributing to esquema
+# Contributing to hclapi
 
-It's recommended that you read the [documentation](https://ju4n97.github.io/esquema/) for architecture and behavior. This project follows standard [Effective Go](https://go.dev/doc/effective_go) idioms to keep the codebase simple, fast, and easy to maintain.
+It's recommended that you read the [documentation](https://ju4n97.github.io/hclapi/) for architecture and behavior. This project follows standard [Effective Go](https://go.dev/doc/effective_go) idioms to keep the codebase simple, fast, and easy to maintain.
 
 ## Development
 
@@ -11,21 +11,21 @@ Tasks are available in the [Taskfile](Taskfile.yaml).
 Prefer tests that exercise behavior through the public API:
 
 ```go
-cfg, err := esquema.Parse(manifest)
+cfg, err := hclapi.Parse(manifest)
 if err != nil {
     t.Fatal(err)
 }
 
-engine, err := esquema.New(cfg)
+api, err := hclapi.New(cfg)
 if err != nil {
     t.Fatal(err)
 }
-defer engine.Close()
+defer api.Close()
 
 req := httptest.NewRequest(http.MethodGet, "/users", nil)
 rec := httptest.NewRecorder()
 
-engine.ServeHTTP(rec, req)
+api.ServeHTTP(rec, req)
 
 if rec.Code != http.StatusOK {
     t.Fatalf("status = %d; want %d", rec.Code, http.StatusOK)

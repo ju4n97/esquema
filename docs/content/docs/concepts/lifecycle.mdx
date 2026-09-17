@@ -5,12 +5,12 @@ description: Two phase execution from boot compilation to runtime request dispat
 
 # Request lifecycle
 
-esquema operates in two distinct phases. Manifests are verified once when the server boots, and incoming requests run through a fast, sequential execution pipeline.
+hclapi operates in two distinct phases. Manifests are verified once when the server boots, and incoming requests run through a fast, sequential execution pipeline.
 
-| Phase       | Trigger               | Actions                                                                                             | On failure                                              |
-| :---------- | :-------------------- | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------------ |
-| **Boot**    | `esquema serve` boots | Discovers files, opens connection pools, precompiles Starlark scripts, and caches OpenAPI documents | Halts immediately with a clear terminal diagnostic      |
-| **Request** | HTTP call arrives     | Enforces size limits, validates inputs, executes steps, and streams response                        | Returns an RFC 9457 error payload; server keeps running |
+| Phase       | Trigger              | Actions                                                                                             | On failure                                              |
+| :---------- | :------------------- | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------------ |
+| **Boot**    | `hclapi serve` boots | Discovers files, opens connection pools, precompiles Starlark scripts, and caches OpenAPI documents | Halts immediately with a clear terminal diagnostic      |
+| **Request** | HTTP call arrives    | Enforces size limits, validates inputs, executes steps, and streams response                        | Returns an RFC 9457 error payload; server keeps running |
 
 ## Execution stages
 

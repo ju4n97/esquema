@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestEngine_StarlarkStep verifies script execution, context modification, and step limits.
@@ -39,12 +39,12 @@ route "POST /infinite" {
 }
 `
 
-		cfg, err := esquema.Parse(manifestContent)
+		cfg, err := hclapi.Parse(manifestContent)
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
 
-		eng, err := esquema.New(cfg)
+		eng, err := hclapi.New(cfg)
 		if err != nil {
 			t.Fatalf("engine init failed: %v", err)
 		}
@@ -77,12 +77,12 @@ route "POST /broken" {
   respond { status = 200 }
 }
 `
-		cfg, err := esquema.Parse(badManifest)
+		cfg, err := hclapi.Parse(badManifest)
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
 
-		_, err = esquema.New(cfg)
+		_, err = hclapi.New(cfg)
 		if err == nil {
 			t.Fatal("expected engine initialization to fail for bad starlark syntax")
 		}

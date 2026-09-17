@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestEngine_SpecStep verifies OpenAPI specification document serving and ETag caching.
@@ -37,12 +37,12 @@ route "GET /openapi.yaml" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}

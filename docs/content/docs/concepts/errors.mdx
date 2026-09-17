@@ -5,7 +5,7 @@ description: RFC 9457 Problem Details error generation, structure, and automatic
 
 # Errors and problem details
 
-esquema uses [RFC 9457 Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457) for all error responses. Error payloads use the standard `application/problem+json` media type.
+hclapi uses [RFC 9457 Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457) for all error responses. Error payloads use the standard `application/problem+json` media type.
 
 You won't get arbitrary error text or inconsistent JSON envelopes. Errors always return a structured object.
 
@@ -13,20 +13,20 @@ You won't get arbitrary error text or inconsistent JSON envelopes. Errors always
 
 ```json
 {
-  "type": "urn:esquema:error:not-found",
+  "type": "urn:hclapi:error:not-found",
   "title": "Not Found",
   "status": 404,
   "detail": "User not found"
 }
 ```
 
-| Field            | Type     | Description                                                    |
-| :--------------- | :------- | :------------------------------------------------------------- |
-| `type`           | `string` | URI identifier for the error type (`urn:esquema:error:<slug>`) |
-| `title`          | `string` | Short human readable summary of the HTTP status code           |
-| `status`         | `int`    | Standard HTTP status code integer                              |
-| `detail`         | `string` | Explanation specific to this occurrence                        |
-| `invalid_params` | `list`   | Field validation failures, present on HTTP 422 errors          |
+| Field            | Type     | Description                                                   |
+| :--------------- | :------- | :------------------------------------------------------------ |
+| `type`           | `string` | URI identifier for the error type (`urn:hclapi:error:<slug>`) |
+| `title`          | `string` | Short human readable summary of the HTTP status code          |
+| `status`         | `int`    | Standard HTTP status code integer                             |
+| `detail`         | `string` | Explanation specific to this occurrence                       |
+| `invalid_params` | `list`   | Field validation failures, present on HTTP 422 errors         |
 
 ## The `problem()` function
 
@@ -49,7 +49,7 @@ respond {
 
 ## Automatic runtime error responses
 
-esquema generates Problem Details automatically when standard checks fail:
+hclapi generates Problem Details automatically when standard checks fail:
 
 ### Malformed JSON (HTTP 400)
 
@@ -57,7 +57,7 @@ Returned when incoming request bodies contain broken JSON syntax:
 
 ```json
 {
-  "type": "urn:esquema:error:bad-request",
+  "type": "urn:hclapi:error:bad-request",
   "title": "Bad Request",
   "status": 400,
   "detail": "Malformed JSON request body"
@@ -70,7 +70,7 @@ Returned when a request body exceeds `server.max_body_size`:
 
 ```json
 {
-  "type": "urn:esquema:error:request-entity-too-large",
+  "type": "urn:hclapi:error:request-entity-too-large",
   "title": "Request Entity Too Large",
   "status": 413,
   "detail": "request body exceeds limit of 10485760 bytes"
@@ -83,7 +83,7 @@ Returned when incoming data violates schema rules. All failures return together 
 
 ```json
 {
-  "type": "urn:esquema:error:unprocessable-entity",
+  "type": "urn:hclapi:error:unprocessable-entity",
   "title": "Unprocessable Entity",
   "status": 422,
   "detail": "Request failed schema validation constraints",
@@ -100,7 +100,7 @@ Returned when an unhandled database error occurs during step processing:
 
 ```json
 {
-  "type": "urn:esquema:error:internal-server-error",
+  "type": "urn:hclapi:error:internal-server-error",
   "title": "Internal Server Error",
   "status": 500,
   "detail": "step \"query\": connection reset by peer"
@@ -113,7 +113,7 @@ Returned when a custom Go step callback encounters a panic, such as a nil pointe
 
 ```json
 {
-  "type": "urn:esquema:error:internal-server-error",
+  "type": "urn:hclapi:error:internal-server-error",
   "title": "Internal Server Error",
   "status": 500,
   "detail": "step \"compute\" panic: runtime error: invalid memory address or nil pointer dereference"
@@ -126,7 +126,7 @@ Returned when an outbound `http` step or `valkey` connection drops unexpectedly:
 
 ```json
 {
-  "type": "urn:esquema:error:bad-gateway",
+  "type": "urn:hclapi:error:bad-gateway",
   "title": "Bad Gateway",
   "status": 502,
   "detail": "step \"fetch_remote\" http call failed: dial tcp 10.0.0.1:443: connect: connection refused"

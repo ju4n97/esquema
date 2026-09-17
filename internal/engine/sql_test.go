@@ -10,7 +10,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestEngine_SQLExecution verifies dialect rewriting, multi-line comment stripping, and error code catches.
@@ -87,12 +87,12 @@ route "POST /items" {
 }
 `, dbSource)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine initialization failed: %v", err)
 	}
@@ -163,12 +163,12 @@ route "POST /test-sql" {
 }
 `, dbSource)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}

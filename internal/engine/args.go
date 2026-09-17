@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ju4n97/esquema/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/scalar"
 )
 
 // Args represents evaluated arguments passed to a Go step callback.

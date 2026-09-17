@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestEngine_Valkey_UnitErrors verifies configuration error handling without network dependencies.
@@ -37,7 +37,7 @@ route "GET /cache" {
   }
 }
 `
-		cfg, err := esquema.Parse(manifest)
+		cfg, err := hclapi.Parse(manifest)
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
@@ -45,7 +45,7 @@ route "GET /cache" {
 		// Delete connection from runtime to simulate an uninitialized pool
 		delete(cfg.Connections, "cache")
 
-		eng, err := esquema.New(cfg)
+		eng, err := hclapi.New(cfg)
 		if err != nil {
 			t.Fatalf("engine init failed: %v", err)
 		}

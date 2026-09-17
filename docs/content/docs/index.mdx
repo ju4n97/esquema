@@ -8,10 +8,10 @@ import { OverviewGroup, SourceCode } from "@rspress/core/theme";
 
 # Introduction
 
-esquema is a lightweight API engine distributed as a single binary and embeddable Go module. It turns HCL manifests into instant HTTP APIs, combining data access, validation, transformation, and route definitions in a single declarative runtime with zero-drift OpenAPI 3.1 generation.
+hclapi is a lightweight API engine distributed as a single binary and embeddable Go module. It turns HCL manifests into instant HTTP APIs, combining data access, validation, transformation, and route definitions in a single declarative runtime with zero-drift OpenAPI 3.1 generation.
 
 :::info Request-time execution
-Manifests are parsed and compiled once at boot time. esquema executes pipelines dynamically per request without generating or compiling Go source.
+Manifests are parsed and compiled once at boot time. hclapi executes pipelines dynamically per request without generating or compiling Go source.
 :::
 
 <OverviewGroup
@@ -27,7 +27,7 @@ Manifests are parsed and compiled once at boot time. esquema executes pipelines 
         link: "/quickstart",
       },
       {
-        text: "Why esquema",
+        text: "Why hclapi",
         link: "/why",
       },
     ],
@@ -86,7 +86,7 @@ Manifests are parsed and compiled once at boot time. esquema executes pipelines 
       },
       {
         text: "CLI reference",
-        link: "/cli/esquema",
+        link: "/cli/hclapi",
       },
     ],
   }}
@@ -108,7 +108,7 @@ Manifests are parsed and compiled once at boot time. esquema executes pipelines 
   }}
 />
 
-## How esquema works
+## How hclapi works
 
 A route consists of an HTTP method and path pattern, optional request validation, and an ordered pipeline of steps:
 
@@ -119,14 +119,14 @@ A route consists of an HTTP method and path pattern, optional request validation
 
 See [Request lifecycle](/docs/concepts/lifecycle) for the execution model and [Pipelines and steps](/docs/concepts/pipelines) for pipeline rules.
 
-## What esquema is for
+## What hclapi is for
 
-esquema is intended for HTTP APIs where the service layer is primarily an interface over data storage and external services. It keeps route definitions, queries, input validation, and transformations together in readable HCL manifests.
+hclapi is intended for HTTP APIs where the service layer is primarily an interface over data storage and external services. It keeps route definitions, queries, input validation, and transformations together in readable HCL manifests.
 
-esquema doesn't replace general-purpose application frameworks for complex long-running worker loops, background job queues, or stateful streaming sessions.
+hclapi doesn't replace general-purpose application frameworks for complex long-running worker loops, background job queues, or stateful streaming sessions.
 
 ## Source
 
 Source code and issue tracker:
 
-<SourceCode href="https://github.com/ju4n97/esquema" />
+<SourceCode href="https://github.com/ju4n97/hclapi" />

@@ -12,9 +12,9 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/ctyconv"
-	"github.com/ju4n97/esquema/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/ctyconv"
+	"github.com/ju4n97/hclapi/internal/scalar"
 )
 
 // Load discovers, parses, validates, and compiles HCL manifests into a verified Config.

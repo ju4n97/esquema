@@ -42,7 +42,7 @@ func Render(renderer, customTemplate string, data TemplateData) ([]byte, error) 
 		tmplContent = string(content)
 	}
 
-	tmpl, err := template.New("esquema_docs").Parse(tmplContent)
+	tmpl, err := template.New("hclapi_docs").Parse(tmplContent)
 	if err != nil {
 		return nil, fmt.Errorf("parse docs template: %w", err)
 	}

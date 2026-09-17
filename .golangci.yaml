@@ -134,7 +134,7 @@ formatters:
 
   settings:
     gofumpt:
-      module-path: github.com/ju4n97/esquema
+      module-path: github.com/ju4n97/hclapi
       extra:
         group-params: true
 
@@ -142,7 +142,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/ju4n97/esquema)
+        - prefix(github.com/ju4n97/hclapi)
       custom-order: true
 
     golines:

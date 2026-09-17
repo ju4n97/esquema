@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/engine"
+	"github.com/ju4n97/hclapi/internal/engine"
 )
 
 // TestArgs_GetAndCoercion verifies typed argument extraction and numeric coercion.

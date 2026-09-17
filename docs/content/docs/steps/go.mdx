@@ -20,13 +20,13 @@ step "go" "compute_tax" {
 
 ## Handler signature
 
-Register handlers using the `esquema.WithStep` option when initializing the engine:
+Register handlers using the `hclapi.WithStep` option when initializing the engine:
 
 ```go
-func(ctx context.Context, step *esquema.Step) (any, error)
+func(ctx context.Context, step *hclapi.Step) (any, error)
 ```
 
-The `*esquema.Step` struct exposes:
+The `*hclapi.Step` struct exposes:
 
 ```go
 type Step struct {
@@ -41,7 +41,7 @@ type Step struct {
 `step.Args` provides typed helpers with automatic coercion:
 
 ```go
-func calculateTax(ctx context.Context, step *esquema.Step) (any, error) {
+func calculateTax(ctx context.Context, step *hclapi.Step) (any, error) {
     // Typed extraction with fallback
     amount := step.Args.GetOr("amount", 0.0)
     country := step.Args.GetOr("country", "CO")

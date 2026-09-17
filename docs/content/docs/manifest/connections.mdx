@@ -9,7 +9,7 @@ The `connection` block declares external pools for relational databases and key-
 
 ## SQL connections
 
-esquema uses four canonical SQL engine names:
+hclapi uses four canonical SQL engine names:
 
 ```hcl
 connection "sql" "main" {
@@ -31,7 +31,7 @@ connection "sql" "main" {
 | **`sqlite`**    |         `?`         | `sqlite`          |
 | **`sqlserver`** |     `@p1, @p2`      | `sqlserver`       |
 
-Aliases like `postgresql`, `pgx`, `sqlite3`, `mariadb`, or `mssql` aren't allowed. esquema rejects non-canonical names during compilation so your manifests stay consistent across teams.
+Aliases like `postgresql`, `pgx`, `sqlite3`, `mariadb`, or `mssql` aren't allowed. hclapi rejects non-canonical names during compilation so your manifests stay consistent across teams.
 
 ### Pool settings
 

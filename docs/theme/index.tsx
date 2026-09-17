@@ -3,10 +3,10 @@ import { Layout as BasicLayout } from '@rspress/core/theme-original';
 const Layout = () => (
   <BasicLayout
     afterNavMenu={
-      <div className="esquema-nav-actions">    
+      <div className="hclapi-nav-actions">    
         <a
-          href="/esquema/docs/installation"
-          className="esquema-button esquema-button--primary"
+          href="/hclapi/docs/installation"
+          className="hclapi-button hclapi-button--primary"
         >
           Install
         </a>

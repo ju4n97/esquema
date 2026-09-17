@@ -21,7 +21,7 @@
   },
   {
     "text": "CLI reference",
-    "link": "/cli/esquema",
+    "link": "/cli/hclapi",
     "activeMatch": "^/docs/content/cli/"
   },
   {

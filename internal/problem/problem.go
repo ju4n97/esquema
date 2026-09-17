@@ -54,7 +54,7 @@ func (p Problem) MarshalJSON() ([]byte, error) {
 	problemType := p.Type
 	if problemType == "" && p.Status != 0 {
 		slug := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
-		problemType = "urn:esquema:error:" + slug
+		problemType = "urn:hclapi:error:" + slug
 	}
 	if problemType != "" {
 		m["type"] = problemType
@@ -82,7 +82,7 @@ func New(status int, detail ...string) Problem {
 	p := Problem{
 		Status: status,
 		Title:  title,
-		Type:   "urn:esquema:error:" + strings.ToLower(strings.ReplaceAll(title, " ", "-")),
+		Type:   "urn:hclapi:error:" + strings.ToLower(strings.ReplaceAll(title, " ", "-")),
 	}
 	if len(detail) > 0 {
 		p.Detail = detail[0]

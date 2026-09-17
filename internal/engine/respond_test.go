@@ -10,7 +10,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestEngine_Respond_CustomContentType verifies that custom non-JSON media types are streamed raw.
@@ -35,12 +35,12 @@ route "GET /export" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -122,12 +122,12 @@ route "GET /accounts" {
 }
 `, dbSource)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}

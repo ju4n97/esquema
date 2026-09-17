@@ -1,4 +1,4 @@
-module github.com/ju4n97/esquema
+module github.com/ju4n97/hclapi
 
 go 1.27.1
 

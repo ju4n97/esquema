@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // TestProblem_Serialization verifies RFC 9457 JSON marshaling and extension field inlining.

@@ -46,7 +46,7 @@ step "sql" "create_user" {
 
 ## Parameter binding
 
-You don't need to change query placeholders between database engines. Write parameters using `@name`, and esquema rewrites them automatically based on the connection's engine:
+You don't need to change query placeholders between database engines. Write parameters using `@name`, and hclapi rewrites them automatically based on the connection's engine:
 
 - **`postgres`**: Rewritten to `$1`, `$2`, etc.
 - **`sqlserver`**: Rewritten to `@p1`, `@p2`, etc.
@@ -56,7 +56,7 @@ The query rewriter uses single pass token parsing. It won't touch `@` characters
 
 ## Catching database errors
 
-If a query fails, esquema checks matching `catch` blocks before returning a 500 error. When an error code matches, it halts the pipeline and returns the configured problem payload:
+If a query fails, hclapi checks matching `catch` blocks before returning a 500 error. When an error code matches, it halts the pipeline and returns the configured problem payload:
 
 ```hcl
 catch "23505" {

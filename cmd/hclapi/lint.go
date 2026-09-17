@@ -7,7 +7,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // newLintCommand validates and type-checks manifests without booting listeners or pools.
@@ -27,7 +27,7 @@ func newLintCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			patterns := resolvePatterns(cmd)
 
-			cfg, err := esquema.Load(patterns...)
+			cfg, err := hclapi.Load(patterns...)
 			if err != nil {
 				return fmt.Errorf("validation error:\n%w", err)
 			}

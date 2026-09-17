@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
 // TestParser_ValidManifest verifies parsing of server, openapi, schemas, connections, and routes.

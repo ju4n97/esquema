@@ -32,7 +32,7 @@ route "GET /api/v1/health" {
       def execute(ctx):
           return {
               "status": "healthy",
-              "engine": "esquema",
+              "engine": "hclapi",
               "timestamp": ctx["timestamp"],
           }
     STARLARK

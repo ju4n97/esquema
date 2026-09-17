@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
 // newOpenAPICommand exports the OpenAPI 3.1 specification for the compiled manifests.

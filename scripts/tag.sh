@@ -134,4 +134,4 @@ git push origin "$TAG"
 
 echo
 ok "Successfully created and pushed tag '${CLR_BOLD}${TAG}${CLR_RESET}'."
-info "GitHub Actions release pipeline is running: ${CLR_BOLD}https://github.com/ju4n97/esquema/actions${CLR_RESET}"
+info "GitHub Actions release pipeline is running: ${CLR_BOLD}https://github.com/ju4n97/hclapi/actions${CLR_RESET}"

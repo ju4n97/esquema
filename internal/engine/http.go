@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // maxHTTPResponseBodyLimit restricts remote payloads to 10MB to prevent memory exhaustion.

@@ -12,7 +12,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // setupSQLiteDB initializes an isolated in-memory SQLite table for end-to-end testing.
@@ -138,17 +138,17 @@ route "GET /compute" {
 }
 `, dbSource)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("failed to parse manifest: %v", err)
 	}
 
-	doubleHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	doubleHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		val := step.Args.GetOr("value", int64(0))
 		return map[string]any{"doubled": val * 2}, nil
 	}
 
-	eng, err := esquema.New(cfg, esquema.WithStep("math.double", doubleHandler))
+	eng, err := hclapi.New(cfg, hclapi.WithStep("math.double", doubleHandler))
 	if err != nil {
 		t.Fatalf("failed to initialize engine: %v", err)
 	}

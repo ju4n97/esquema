@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // marsOrbitalPeriodRatio is how many Earth years it takes Mars to orbit the Sun once.
@@ -29,12 +29,12 @@ func run() error {
 		Level: slog.LevelInfo,
 	}))
 
-	config, err := esquema.Load(".")
+	config, err := hclapi.Load(".")
 	if err != nil {
 		return fmt.Errorf("load manifests: %w", err)
 	}
 
-	marsAgeHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	marsAgeHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		earthYears, ok := step.Args.Get[float64]("earth_years")
 		if !ok {
 			return nil, errors.New("missing or invalid 'earth_years' argument")
@@ -46,9 +46,9 @@ func run() error {
 		}, nil
 	}
 
-	engine, err := esquema.New(config,
-		esquema.WithLogger(logger),
-		esquema.WithStep("astronomy.mars_age", marsAgeHandler),
+	engine, err := hclapi.New(config,
+		hclapi.WithLogger(logger),
+		hclapi.WithStep("astronomy.mars_age", marsAgeHandler),
 	)
 	if err != nil {
 		return fmt.Errorf("initialize engine: %w", err)

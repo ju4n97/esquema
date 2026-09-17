@@ -16,7 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/valkey"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestValkey_Integration verifies live Valkey operations (set with TTL, get, miss, and del).
@@ -129,12 +129,12 @@ route "DELETE /cache/{key}" {
 }
 `, uri)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("failed to initialize engine: %v", err)
 	}

@@ -1,23 +1,23 @@
 ---
 title: Go integration
-description: Embed esquema as an HTTP handler in your Go service and register native pipeline handlers.
+description: Embed hclapi as an HTTP handler in your Go service and register native pipeline handlers.
 ---
 
 # Go integration
 
-You can embed esquema directly into an existing Go application as a standard library. It mounts on any standard `http.ServeMux`, reuses managed connection pools, and lets you call Go code from your HCL routes.
+You can embed hclapi directly into an existing Go application as a standard library. It mounts on any standard `http.ServeMux`, reuses managed connection pools, and lets you call Go code from your HCL routes.
 
 ## Installation
 
 Add the module to your `go.mod`:
 
 ```bash
-go get github.com/ju4n97/esquema
+go get github.com/ju4n97/hclapi
 ```
 
 ## Embedding in an existing Go service
 
-`*esquema.Engine` implements Go's standard `http.Handler` interface, so you can pass it straight to `http.ListenAndServe` or mount it under an existing router:
+`*hclapi.Engine` implements Go's standard `http.Handler` interface, so you can pass it straight to `http.ListenAndServe` or mount it under an existing router:
 
 ```go
 package main
@@ -31,22 +31,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 func main() {
 	// 1. Load and compile manifests
-	cfg, err := esquema.Load("./routes/**/*.hcl")
+	cfg, err := hclapi.Load("./routes/**/*.hcl")
 	if err != nil {
 		log.Fatalf("failed to compile manifests: %v", err)
 	}
 
 	// 2. Initialize engine with custom step handlers
-	app, err := esquema.New(cfg,
-		esquema.WithStep("payments.charge", handlePayment),
+	app, err := hclapi.New(cfg,
+		hclapi.WithStep("payments.charge", handlePayment),
 	)
 	if err != nil {
-		log.Fatalf("failed to initialize esquema: %v", err)
+		log.Fatalf("failed to initialize hclapi: %v", err)
 	}
 	defer app.Close()
 
@@ -74,7 +74,7 @@ func main() {
 	_ = srv.Shutdown(shutdownCtx)
 }
 
-func handlePayment(ctx context.Context, step *esquema.Step) (any, error) {
+func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
 	amount := step.Args.GetOr("amount", 0)
 	return map[string]any{"charged": amount, "status": "success"}, nil
 }
@@ -103,10 +103,10 @@ route "POST /checkout" {
 Go step handlers use this signature:
 
 ```go
-func(ctx context.Context, step *esquema.Step) (any, error)
+func(ctx context.Context, step *hclapi.Step) (any, error)
 ```
 
-The `*esquema.Step` struct exposes:
+The `*hclapi.Step` struct exposes:
 
 ```go
 type Step struct {
@@ -121,7 +121,7 @@ type Step struct {
 `step.Args` gives you typed, panic-safe helpers with automatic coercion:
 
 ```go
-func handlePayment(ctx context.Context, step *esquema.Step) (any, error) {
+func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
     // 1. Direct typed fetch with success flag
     currency, ok := step.Args.Get[string]("currency")
     if !ok {
@@ -154,7 +154,7 @@ type ChargeParams struct {
     TenantID string `json:"tenant_id"`
 }
 
-func handlePayment(ctx context.Context, step *esquema.Step) (any, error) {
+func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
     var params ChargeParams
     if err := step.Args.Bind(&params); err != nil {
         return nil, err
@@ -169,7 +169,7 @@ func handlePayment(ctx context.Context, step *esquema.Step) (any, error) {
 You can inspect the untouched standard `*http.Request` via `step.Request`:
 
 ```go
-func handleCustomAuth(ctx context.Context, step *esquema.Step) (any, error) {
+func handleCustomAuth(ctx context.Context, step *hclapi.Step) (any, error) {
     // Read raw headers
     authHeader := step.Request.Header.Get("Authorization")
 
@@ -189,7 +189,7 @@ func handleCustomAuth(ctx context.Context, step *esquema.Step) (any, error) {
 
 ## Reusing database and cache pools
 
-If your Go handlers need direct database access, you don't need to open secondary connection pools. You can access the exact database and cache clients configured by esquema:
+If your Go handlers need direct database access, you don't need to open secondary connection pools. You can access the exact database and cache clients configured by hclapi:
 
 ```go
 // Direct SQL access via *sql.DB

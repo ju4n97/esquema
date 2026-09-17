@@ -16,8 +16,8 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	"modernc.org/sqlite"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 var (

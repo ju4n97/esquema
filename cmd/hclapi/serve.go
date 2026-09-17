@@ -14,7 +14,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // newServeCommand starts the HTTP API service.
@@ -29,31 +29,31 @@ func newServeCommand() *cli.Command {
 				Name:    "config",
 				Aliases: []string{"c", "manifests", "m"},
 				Usage:   "Manifest file, directory, or glob pattern (can be specified multiple times)",
-				Sources: cli.EnvVars("ESQUEMA_CONFIG", "ESQUEMA_MANIFESTS"),
+				Sources: cli.EnvVars("HCLAPI_CONFIG", "HCLAPI_MANIFESTS"),
 			},
 			&cli.StringFlag{
 				Name:    "host",
 				Aliases: []string{"H"},
 				Usage:   "Host address to bind the listener (overrides manifest)",
-				Sources: cli.EnvVars("ESQUEMA_HOST", "HOST"),
+				Sources: cli.EnvVars("HCLAPI_HOST", "HOST"),
 			},
 			&cli.IntFlag{
 				Name:    "port",
 				Aliases: []string{"p"},
 				Usage:   "Port to bind the listener (overrides manifest)",
-				Sources: cli.EnvVars("ESQUEMA_PORT", "PORT"),
+				Sources: cli.EnvVars("HCLAPI_PORT", "PORT"),
 			},
 			&cli.StringFlag{
 				Name:    "log-level",
 				Usage:   "Log level (debug, info, warn, error)",
 				Value:   "info",
-				Sources: cli.EnvVars("ESQUEMA_LOG_LEVEL"),
+				Sources: cli.EnvVars("HCLAPI_LOG_LEVEL"),
 			},
 			&cli.StringFlag{
 				Name:    "log-format",
 				Usage:   "Log output format (text, json)",
 				Value:   "text",
-				Sources: cli.EnvVars("ESQUEMA_LOG_FORMAT"),
+				Sources: cli.EnvVars("HCLAPI_LOG_FORMAT"),
 			},
 			&cli.BoolFlag{
 				Name:    "verbose",
@@ -65,9 +65,9 @@ func newServeCommand() *cli.Command {
 			logger := initLogger(cmd)
 
 			patterns := resolvePatterns(cmd)
-			logger.Info("compiling esquema manifests", "targets", patterns)
+			logger.Info("compiling hclapi manifests", "targets", patterns)
 
-			cfg, err := esquema.Load(patterns...)
+			cfg, err := hclapi.Load(patterns...)
 			if err != nil {
 				return fmt.Errorf("manifest compilation failed:\n%w", err)
 			}
@@ -79,7 +79,7 @@ func newServeCommand() *cli.Command {
 				cfg.Server.Port = cmd.Int("port")
 			}
 
-			engine, err := esquema.New(cfg)
+			engine, err := hclapi.New(cfg)
 			if err != nil {
 				return fmt.Errorf("engine initialization failed: %w", err)
 			}

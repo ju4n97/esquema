@@ -64,7 +64,7 @@ The `request` block validates parameters across four coordinates: `path`, `query
 
 ### Automatic parameter coercion
 
-Path and query inputs start as raw text, but esquema coerces them into native Go types as soon as validation passes:
+Path and query inputs start as raw text, but hclapi coerces them into native Go types as soon as validation passes:
 
 - `type = "integer"`: Coerced to `int64`.
 - `type = "number"`: Coerced to `float64`.

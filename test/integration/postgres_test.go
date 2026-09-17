@@ -16,7 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // TestPostgres_Integration verifies live PostgreSQL connections, $1 parameter rewriting, and catch "23505".
@@ -25,8 +25,8 @@ func TestPostgres_Integration(t *testing.T) {
 
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:17-alpine",
-		postgres.WithDatabase("esquematest"),
-		postgres.WithUsername("esquema"),
+		postgres.WithDatabase("hclapitest"),
+		postgres.WithUsername("hclapi"),
 		postgres.WithPassword("secret"),
 		postgres.WithInitScripts(),
 		testcontainers.WithWaitStrategy(
@@ -102,12 +102,12 @@ route "POST /members" {
 }
 `, connStr)
 
-	cfg, err := esquema.Parse(manifestContent)
+	cfg, err := hclapi.Parse(manifestContent)
 	if err != nil {
 		t.Fatalf("failed to parse manifest: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("failed to initialize engine: %v", err)
 	}

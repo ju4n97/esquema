@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ju4n97/esquema"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // TestEngine_GoStep_Execution verifies dynamic argument evaluation and pipeline result passing.
@@ -53,12 +53,12 @@ route "POST /calc/{factor}" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	multHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	multHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		factor := step.Args.GetOr("factor", int64(1))
 		base := step.Args.GetOr("base", int64(0))
 
@@ -69,7 +69,7 @@ route "POST /calc/{factor}" {
 		return map[string]any{"product": factor * base}, nil
 	}
 
-	eng, err := esquema.New(cfg, esquema.WithStep("math.mult", multHandler))
+	eng, err := hclapi.New(cfg, hclapi.WithStep("math.mult", multHandler))
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -128,24 +128,24 @@ route "POST /handler-panic" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	failingHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	failingHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		return nil, errors.New("upstream service connection refused")
 	}
 
-	panickingHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	panickingHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		var ptr *int
 		*ptr = 42
 		return nil, nil
 	}
 
-	eng, err := esquema.New(cfg,
-		esquema.WithStep("fail.error", failingHandler),
-		esquema.WithStep("fail.panic", panickingHandler),
+	eng, err := hclapi.New(cfg,
+		hclapi.WithStep("fail.error", failingHandler),
+		hclapi.WithStep("fail.panic", panickingHandler),
 	)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
@@ -210,13 +210,13 @@ route "GET /slow" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
 	canceledCh := make(chan struct{})
-	slowHandler := func(ctx context.Context, step *esquema.Step) (any, error) {
+	slowHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
 		select {
 		case <-ctx.Done():
 			close(canceledCh)
@@ -226,7 +226,7 @@ route "GET /slow" {
 		}
 	}
 
-	eng, err := esquema.New(cfg, esquema.WithStep("slow.worker", slowHandler))
+	eng, err := hclapi.New(cfg, hclapi.WithStep("slow.worker", slowHandler))
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}

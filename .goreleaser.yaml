@@ -2,16 +2,16 @@
 
 version: 2
 
-project_name: esquema
+project_name: hclapi
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: esquema
-    main: ./cmd/esquema
-    binary: esquema
+  - id: hclapi
+    main: ./cmd/hclapi
+    binary: hclapi
     env:
       - CGO_ENABLED=0
     flags:
@@ -50,13 +50,13 @@ archives:
       - LICENSE*
       - CONTRIBUTING.md*
       - SECURITY.md*
-      - man/esquema.1*
+      - man/hclapi.1*
 
 nfpms:
   - id: packages
-    package_name: esquema
+    package_name: hclapi
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    homepage: "https://github.com/ju4n97/esquema"
+    homepage: "https://github.com/ju4n97/hclapi"
     maintainer: "Juan <https://github.com/ju4n97>"
     description: "Declarative API runtime that turns HCL manifests into structured HTTP services."
     license: "MIT"
@@ -69,8 +69,8 @@ nfpms:
     section: default
     priority: optional
     contents:
-      - src: ./man/esquema.1
-        dst: /usr/share/man/man1/esquema.1
+      - src: ./man/hclapi.1
+        dst: /usr/share/man/man1/hclapi.1
         file_info:
           mode: 0644
 
@@ -80,7 +80,7 @@ checksum:
 
 dockers_v2:
   - images:
-      - ghcr.io/ju4n97/esquema
+      - ghcr.io/ju4n97/hclapi
     tags:
       - "{{ .Version }}"
       - latest

@@ -1,8 +1,8 @@
 ---
-title: esquema openapi
+title: hclapi openapi
 ---
 
-<!-- Generated automatically by esquema docs. Do not edit directly. -->
+<!-- Generated automatically by hclapi docs. Do not edit directly. -->
 
 # NAME
 

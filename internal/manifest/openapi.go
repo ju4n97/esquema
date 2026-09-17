@@ -10,8 +10,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"gopkg.in/yaml.v3"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // GenerateOpenAPI compiles a validated OpenAPI 3.1 specification document using kin-openapi.

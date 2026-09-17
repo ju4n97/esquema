@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/config"
+	"github.com/ju4n97/hclapi/internal/config"
 )
 
 // TestParseStepType verifies that only canonical step types are accepted.

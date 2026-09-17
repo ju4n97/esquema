@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Create an HCL manifest, start esquema, and call two working endpoints.
+description: Create an HCL manifest, start hclapi, and call two working endpoints.
 ---
 
 import { Steps } from "@rspress/core/theme";
@@ -16,7 +16,7 @@ This guide walks through creating an HCL manifest, starting the HTTP service, an
 Create a project directory and a `main.hcl` file:
 
 ```bash
-mkdir esquema-quickstart && cd esquema-quickstart
+mkdir hclapi-quickstart && cd hclapi-quickstart
 touch app.hcl
 ```
 
@@ -64,20 +64,20 @@ route "POST /transform" {
 Run the server pointing to the manifest:
 
 ```bash
-esquema serve app.hcl
+hclapi serve app.hcl
 ```
 
 Output:
 
 ```text
-{"time":"...","level":"INFO","msg":"compiling esquema manifests","targets":["app.hcl"]}
+{"time":"...","level":"INFO","msg":"compiling hclapi manifests","targets":["app.hcl"]}
 {"time":"...","level":"INFO","msg":"server listening","addr":"127.0.0.1:8080","endpoints":2}
 ```
 
 Host and port can also be overridden via CLI flags:
 
 ```bash
-esquema serve app.hcl --port 9000 --host 0.0.0.0
+hclapi serve app.hcl --port 9000 --host 0.0.0.0
 ```
 
 ### 3. Call the endpoints
@@ -110,7 +110,7 @@ Content-Type: application/json
 {"count":3,"tags":["env:prod","env:staging","env:dev"]}
 ```
 
-If you send malformed JSON, `esquema` rejects it with an RFC 9457 `400 Bad Request` before the pipeline executes:
+If you send malformed JSON, `hclapi` rejects it with an RFC 9457 `400 Bad Request` before the pipeline executes:
 
 ```bash
 curl -i -X POST http://localhost:8080/transform \
@@ -122,7 +122,7 @@ curl -i -X POST http://localhost:8080/transform \
 HTTP/1.1 400 Bad Request
 Content-Type: application/problem+json
 
-{"detail":"Malformed JSON request body","status":400,"title":"Bad Request","type":"urn:esquema:error:bad-request"}
+{"detail":"Malformed JSON request body","status":400,"title":"Bad Request","type":"urn:hclapi:error:bad-request"}
 ```
 
 </Steps>

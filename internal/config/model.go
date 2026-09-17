@@ -5,10 +5,10 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/ju4n97/esquema/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/scalar"
 )
 
-// Config represents the evaluated, type-checked esquema service configuration.
+// Config represents the evaluated, type-checked hclapi service configuration.
 type Config struct {
 	Server      Server                `json:"server"`
 	OpenAPI     OpenAPIMetadata       `json:"openapi"`

@@ -15,12 +15,12 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 const (
-	instrumentationName = "github.com/ju4n97/esquema"
+	instrumentationName = "github.com/ju4n97/hclapi"
 )
 
 // Telemetry provides vendor-agnostic logging, tracing, and metric instrumentation.

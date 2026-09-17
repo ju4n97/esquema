@@ -1,8 +1,8 @@
 ---
-title: esquema routes
+title: hclapi routes
 ---
 
-<!-- Generated automatically by esquema docs. Do not edit directly. -->
+<!-- Generated automatically by hclapi docs. Do not edit directly. -->
 
 # NAME
 

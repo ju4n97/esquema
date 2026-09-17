@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ju4n97/esquema/internal/config"
+	"github.com/ju4n97/hclapi/internal/config"
 )
 
 // executeRespond serializes the final HTTP response payload and performs egress masking.

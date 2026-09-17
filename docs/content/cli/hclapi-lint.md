@@ -1,8 +1,8 @@
 ---
-title: esquema lint
+title: hclapi lint
 ---
 
-<!-- Generated automatically by esquema docs. Do not edit directly. -->
+<!-- Generated automatically by hclapi docs. Do not edit directly. -->
 
 # NAME
 

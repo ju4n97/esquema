@@ -46,14 +46,14 @@ func writeCommandDocs(cmd *cli.Command, path []string) error {
 	}
 
 	content := fmt.Sprintf(
-		"---\ntitle: %s\n---\n\n<!-- Generated automatically by esquema docs. Do not edit directly. -->\n\n%s\n",
+		"---\ntitle: %s\n---\n\n<!-- Generated automatically by hclapi docs. Do not edit directly. -->\n\n%s\n",
 		name,
 		md,
 	)
 
-	fileName := "esquema.md"
+	fileName := "hclapi.md"
 	if len(currPath) > 1 {
-		fileName = "esquema-" + strings.Join(currPath[1:], "-") + ".md"
+		fileName = "hclapi-" + strings.Join(currPath[1:], "-") + ".md"
 	}
 
 	filePath := filepath.Join(docsOutputDir, fileName)

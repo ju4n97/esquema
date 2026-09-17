@@ -5,18 +5,18 @@ import pluginKatex from "rspress-plugin-katex";
 
 export default defineConfig({
   root: "content",
-  base: "/esquema/",
+  base: "/hclapi/",
   lang: "en",
-  title: "esquema",
+  title: "hclapi",
   description:
     "A declarative runtime that turns HCL manifests into HTTP APIs.",
-  logoText: "esquema",
+  logoText: "hclapi",
   outDir: "dist",
   globalStyles: path.join(__dirname, "theme/index.css"),
   head: [["meta", { name: "theme-color", content: "#d97706" }]],
   plugins: [
     pluginSitemap({
-      siteUrl: "https://ju4n97.github.io/esquema/",
+      siteUrl: "https://ju4n97.github.io/hclapi/",
     }),
     pluginKatex(),
   ],
@@ -28,18 +28,18 @@ export default defineConfig({
     enableScrollToTop: true,
     llmsUI: true,
     editLink: {
-      docRepoBaseUrl: "https://github.com/ju4n97/esquema/edit/main/",
+      docRepoBaseUrl: "https://github.com/ju4n97/hclapi/edit/main/",
     },
     socialLinks: [
       {
         icon: "github",
         mode: "link",
-        content: "https://github.com/ju4n97/esquema",
+        content: "https://github.com/ju4n97/hclapi",
       },
     ],
     footer: {
       message:
-        '<a href="https://github.com/ju4n97/esquema/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a> © 2026 esquema contributors.',
+        '<a href="https://github.com/ju4n97/hclapi/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a> © 2026 hclapi contributors.',
     },
   },
   route: {

@@ -1,16 +1,16 @@
-# esquema
+# hclapi
 
-[![Go Reference](https://img.shields.io/badge/Go_Reference-pkg.go.dev-007D9C?style=flat-square)](https://pkg.go.dev/github.com/ju4n97/esquema)
-[![Release](https://img.shields.io/github/v/release/ju4n97/esquema?style=flat-square\&label=Release)](https://github.com/ju4n97/esquema/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/ju4n97/esquema/ci.yaml?style=flat-square\&label=CI)](https://github.com/ju4n97/esquema/actions/workflows/ci.yaml)
+[![Go Reference](https://img.shields.io/badge/Go_Reference-pkg.go.dev-007D9C?style=flat-square)](https://pkg.go.dev/github.com/ju4n97/hclapi)
+[![Release](https://img.shields.io/github/v/release/ju4n97/hclapi?style=flat-square\&label=Release)](https://github.com/ju4n97/hclapi/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/ju4n97/hclapi/ci.yaml?style=flat-square\&label=CI)](https://github.com/ju4n97/hclapi/actions/workflows/ci.yaml)
 
-esquema is a declarative API runtime powered by HCL.
+hclapi is a declarative API runtime powered by HCL.
 
 Define HTTP routes, validation, SQL, Valkey, Starlark, Go callbacks, and OpenAPI documentation without generating application code.
 
 Manifests are loaded, validated, and compiled at startup, then executed directly at request time.
 
-[Documentation](https://ju4n97.github.io/esquema/) · [Examples](./examples)
+[Documentation](https://ju4n97.github.io/hclapi/) · [Examples](./examples)
 
 ## Example
 
@@ -65,15 +65,15 @@ route "POST /users" {
 
 ## Go
 
-esquema is also embeddable:
+hclapi is also embeddable:
 
 ```go
-config, err := esquema.Load("routes/*.hcl")
+config, err := hclapi.Load("routes/*.hcl")
 if err != nil {
     log.Fatal(err)
 }
 
-engine, err := esquema.New(config)
+engine, err := hclapi.New(config)
 if err != nil {
     log.Fatal(err)
 }
@@ -82,19 +82,19 @@ defer engine.Close()
 http.ListenAndServe(":8080", engine)
 ```
 
-Custom Go behavior can be registered with `esquema.WithStep`. More information available in the [Go integration guide](https://ju4n97.github.io/esquema/guides/go).
+Custom Go behavior can be registered with `hclapi.WithStep`. More information available in the [Go integration guide](https://ju4n97.github.io/hclapi/guides/go).
 
 ## Install
 
 ```bash
-go install github.com/ju4n97/esquema/cmd/esquema@latest
+go install github.com/ju4n97/hclapi/cmd/hclapi@latest
 ```
 
-Or use the release binaries and container images documented in the [installation guide](https://ju4n97.github.io/esquema/installation).
+Or use the release binaries and container images documented in the [installation guide](https://ju4n97.github.io/hclapi/installation).
 
 ## Documentation
 
-See [esquema documentation](https://ju4n97.github.io/esquema/).
+See [hclapi documentation](https://ju4n97.github.io/hclapi/).
 
 ## Contributing
 

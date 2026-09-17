@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="ju4n97/esquema"
+REPO="ju4n97/hclapi"
 INSTALL_DIR="/usr/local/bin"
 MAN_DIR="/usr/local/share/man/man1"
 
@@ -22,11 +22,11 @@ esac
 # Fetch latest release version
 LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 TAG_NO_V="${LATEST_TAG#v}"
-FILENAME="esquema_${TAG_NO_V}_${OS}_${ARCH}.tar.gz"
+FILENAME="hclapi_${TAG_NO_V}_${OS}_${ARCH}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${FILENAME}"
-MAN_URL="https://raw.githubusercontent.com/${REPO}/${LATEST_TAG}/man/esquema.1"
+MAN_URL="https://raw.githubusercontent.com/${REPO}/${LATEST_TAG}/man/hclapi.1"
 
-echo "Downloading esquema ${LATEST_TAG} for ${OS}/${ARCH}..."
+echo "Downloading hclapi ${LATEST_TAG} for ${OS}/${ARCH}..."
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -35,21 +35,21 @@ curl -fsSL "$DOWNLOAD_URL" | tar -xz -C "$TMP_DIR"
 
 # Install binary to system PATH
 if [[ -w "$INSTALL_DIR" ]]; then
-  install -m 0755 "$TMP_DIR/esquema" "$INSTALL_DIR/esquema"
+  install -m 0755 "$TMP_DIR/hclapi" "$INSTALL_DIR/hclapi"
 else
   echo "Elevated permissions required to install binary to $INSTALL_DIR:"
-  sudo install -m 0755 "$TMP_DIR/esquema" "$INSTALL_DIR/esquema"
+  sudo install -m 0755 "$TMP_DIR/hclapi" "$INSTALL_DIR/hclapi"
 fi
 
 # Download and install manual page
-if curl -fsSL "$MAN_URL" -o "$TMP_DIR/esquema.1" 2>/dev/null; then
+if curl -fsSL "$MAN_URL" -o "$TMP_DIR/hclapi.1" 2>/dev/null; then
   echo "Installing manual page to $MAN_DIR..."
   if [[ -w "/usr/local/share" || -w "$MAN_DIR" ]]; then
     mkdir -p "$MAN_DIR"
-    install -m 0644 "$TMP_DIR/esquema.1" "$MAN_DIR/esquema.1"
+    install -m 0644 "$TMP_DIR/hclapi.1" "$MAN_DIR/hclapi.1"
   else
     sudo mkdir -p "$MAN_DIR"
-    sudo install -m 0644 "$TMP_DIR/esquema.1" "$MAN_DIR/esquema.1"
+    sudo install -m 0644 "$TMP_DIR/hclapi.1" "$MAN_DIR/hclapi.1"
   fi
   
   # Update local man database if mandb is present
@@ -59,6 +59,6 @@ if curl -fsSL "$MAN_URL" -o "$TMP_DIR/esquema.1" 2>/dev/null; then
 fi
 
 echo
-echo "esquema was installed successfully!"
-echo "  • Binary:   $INSTALL_DIR/esquema"
-echo "  • Man page: $MAN_DIR/esquema.1"
+echo "hclapi was installed successfully!"
+echo "  • Binary:   $INSTALL_DIR/hclapi"
+echo "  • Man page: $MAN_DIR/hclapi.1"

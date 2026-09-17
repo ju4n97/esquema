@@ -1,11 +1,11 @@
 ---
 title: Installation
-description: Install esquema on Linux, macOS, Windows, or run it with Docker and Docker Compose.
+description: Install hclapi on Linux, macOS, Windows, or run it with Docker and Docker Compose.
 ---
 
 # Installation
 
-esquema is distributed as a single, statically compiled binary with zero runtime dependencies.
+hclapi is distributed as a single, statically compiled binary with zero runtime dependencies.
 
 ## Quick install
 
@@ -14,7 +14,7 @@ esquema is distributed as a single, statically compiled binary with zero runtime
 Download and install the latest binary matching your operating system and CPU architecture into `/usr/local/bin`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ju4n97/esquema/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ju4n97/hclapi/main/scripts/install.sh | bash
 ```
 
 ### Windows (PowerShell)
@@ -22,53 +22,53 @@ curl -fsSL https://raw.githubusercontent.com/ju4n97/esquema/main/scripts/install
 Download and install the latest binary for Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/ju4n97/esquema/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/ju4n97/hclapi/main/scripts/install.ps1 | iex
 ```
 
 ## Linux package managers
 
-Direct package installations include the esquema binary in `/usr/bin` and system man pages in `/usr/share/man/man1/esquema.1`.
+Direct package installations include the hclapi binary in `/usr/bin` and system man pages in `/usr/share/man/man1/hclapi.1`.
 
 ### Debian / Ubuntu (`.deb`)
 
-Download the `.deb` package from the [releases page](https://github.com/ju4n97/esquema/releases/latest) and install via `dpkg`:
+Download the `.deb` package from the [releases page](https://github.com/ju4n97/hclapi/releases/latest) and install via `dpkg`:
 
 ```bash
 # Example for x86_64 / amd64
-curl -fsSLO https://github.com/ju4n97/esquema/releases/latest/download/esquema_0.1.0_linux_amd64.deb
-sudo dpkg -i esquema_0.1.0_linux_amd64.deb
+curl -fsSLO https://github.com/ju4n97/hclapi/releases/latest/download/hclapi_0.1.0_linux_amd64.deb
+sudo dpkg -i hclapi_0.1.0_linux_amd64.deb
 ```
 
 ### Fedora / RHEL / Rocky Linux (`.rpm`)
 
-Download the `.rpm` package from the [releases page](https://github.com/ju4n97/esquema/releases/latest) and install via `rpm`:
+Download the `.rpm` package from the [releases page](https://github.com/ju4n97/hclapi/releases/latest) and install via `rpm`:
 
 ```bash
 # Example for x86_64 / amd64
-curl -fsSLO https://github.com/ju4n97/esquema/releases/latest/download/esquema_0.1.0_linux_amd64.rpm
-sudo rpm -i esquema_0.1.0_linux_amd64.rpm
+curl -fsSLO https://github.com/ju4n97/hclapi/releases/latest/download/hclapi_0.1.0_linux_amd64.rpm
+sudo rpm -i hclapi_0.1.0_linux_amd64.rpm
 ```
 
 ### Arch Linux (`.pkg.tar.zst`)
 
-Download the native Arch package from the [releases page](https://github.com/ju4n97/esquema/releases/latest) and install via `pacman`:
+Download the native Arch package from the [releases page](https://github.com/ju4n97/hclapi/releases/latest) and install via `pacman`:
 
 ```bash
 # Example for x86_64 / amd64
-curl -fsSLO https://github.com/ju4n97/esquema/releases/latest/download/esquema_0.1.0_linux_amd64.pkg.tar.zst
-sudo pacman -U esquema_0.1.0_linux_amd64.pkg.tar.zst
+curl -fsSLO https://github.com/ju4n97/hclapi/releases/latest/download/hclapi_0.1.0_linux_amd64.pkg.tar.zst
+sudo pacman -U hclapi_0.1.0_linux_amd64.pkg.tar.zst
 ```
 
 ### Alpine Linux (`.apk`)
 
 ```bash
-curl -fsSLO https://github.com/ju4n97/esquema/releases/latest/download/esquema_0.1.0_linux_amd64.apk
-apk add --allow-untrusted esquema_0.1.0_linux_amd64.apk
+curl -fsSLO https://github.com/ju4n97/hclapi/releases/latest/download/hclapi_0.1.0_linux_amd64.apk
+apk add --allow-untrusted hclapi_0.1.0_linux_amd64.apk
 ```
 
 ## Precompiled binaries
 
-Download a precompiled archive directly from the [GitHub releases](https://github.com/ju4n97/esquema/releases/latest) page:
+Download a precompiled archive directly from the [GitHub releases](https://github.com/ju4n97/hclapi/releases/latest) page:
 
 | Operating system | Architecture            | Archive format | Package format                         |
 | :--------------- | :---------------------- | :------------- | :------------------------------------- |
@@ -88,25 +88,25 @@ OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
 
 # 2. Download and extract latest release
-RELEASE_URL="https://github.com/ju4n97/esquema/releases/latest/download/esquema_${OS}_${ARCH}.tar.gz"
+RELEASE_URL="https://github.com/ju4n97/hclapi/releases/latest/download/hclapi_${OS}_${ARCH}.tar.gz"
 curl -fsSL "$RELEASE_URL" | tar -xz
 
 # 3. Move binary to your system PATH
-sudo install -m 0755 esquema /usr/local/bin/esquema
+sudo install -m 0755 hclapi /usr/local/bin/hclapi
 ```
 
 ## Container (Docker and Podman)
 
-esquema is published as a minimal, distroless multi-architecture OCI image on GitHub Container Registry (supporting `linux/amd64` and `linux/arm64`).
+hclapi is published as a minimal, distroless multi-architecture OCI image on GitHub Container Registry (supporting `linux/amd64` and `linux/arm64`).
 
 ### Pull the image
 
 ```bash
 # Docker
-docker pull ghcr.io/ju4n97/esquema:latest
+docker pull ghcr.io/ju4n97/hclapi:latest
 
 # Podman
-podman pull ghcr.io/ju4n97/esquema:latest
+podman pull ghcr.io/ju4n97/hclapi:latest
 ```
 
 ### Start the HTTP server
@@ -115,10 +115,10 @@ Mount your local directory containing `.hcl` manifests into the container and bi
 
 ```bash
 # Docker
-docker run --rm -p 8080:8080 -v "$(pwd):/app:ro" ghcr.io/ju4n97/esquema:latest serve -c /app
+docker run --rm -p 8080:8080 -v "$(pwd):/app:ro" ghcr.io/ju4n97/hclapi:latest serve -c /app
 
 # Podman (includes :z for SELinux volume relabeling)
-podman run --rm -p 8080:8080 -v "$(pwd):/app:ro,z" ghcr.io/ju4n97/esquema:latest serve -c /app
+podman run --rm -p 8080:8080 -v "$(pwd):/app:ro,z" ghcr.io/ju4n97/hclapi:latest serve -c /app
 ```
 
 ### Export OpenAPI specification
@@ -126,24 +126,24 @@ podman run --rm -p 8080:8080 -v "$(pwd):/app:ro,z" ghcr.io/ju4n97/esquema:latest
 Generate an OpenAPI 3.1 JSON specification to stdout:
 
 ```bash
-docker run --rm -v "$(pwd):/app:ro" ghcr.io/ju4n97/esquema:latest openapi -c /app --pretty
+docker run --rm -v "$(pwd):/app:ro" ghcr.io/ju4n97/hclapi:latest openapi -c /app --pretty
 ```
 
 ## Docker Compose
 
-Run esquema alongside PostgreSQL and Valkey in a local development environment:
+Run hclapi alongside PostgreSQL and Valkey in a local development environment:
 
 ```yaml
 services:
-  esquema:
-    image: ghcr.io/ju4n97/esquema:latest
+  hclapi:
+    image: ghcr.io/ju4n97/hclapi:latest
     ports:
       - "8080:8080"
     volumes:
       - .:/app:ro
     command: ["serve", "-c", "/app", "--host", "0.0.0.0", "--port", "8080"]
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/esquema_db?sslmode=disable
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hclapi_db?sslmode=disable
       - REDIS_URL=redis://valkey:6379/0
     depends_on:
       postgres:
@@ -156,7 +156,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=esquema_db
+      - POSTGRES_DB=hclapi_db
     ports:
       - "5432:5432"
     volumes:
@@ -189,7 +189,7 @@ docker compose up -d
 Requires [Go 1.27+](https://go.dev/doc/install) installed:
 
 ```bash
-go install github.com/ju4n97/esquema/cmd/esquema@latest
+go install github.com/ju4n97/hclapi/cmd/hclapi@latest
 ```
 
 _(Ensure `$GOPATH/bin` or `$HOME/go/bin` is in your system `$PATH`)_.
@@ -199,24 +199,24 @@ _(Ensure `$GOPATH/bin` or `$HOME/go/bin` is in your system `$PATH`)_.
 Requires [Task](https://taskfile.dev) installed:
 
 ```bash
-git clone https://github.com/ju4n97/esquema.git
-cd esquema
+git clone https://github.com/ju4n97/hclapi.git
+cd hclapi
 task build
-# Binary is generated at bin/esquema
+# Binary is generated at bin/hclapi
 ```
 
 ## Verification
 
-Check that esquema is installed:
+Check that hclapi is installed:
 
 ```bash
-esquema version
+hclapi version
 ```
 
 Display CLI usage instructions:
 
 ```bash
-esquema --help
+hclapi --help
 ```
 
 ## Verify artifact integrity (optional)
@@ -225,7 +225,7 @@ All release assets include SHA-256 digests in `checksums.txt`:
 
 ```bash
 # Download checksum file
-curl -fsSLO https://github.com/ju4n97/esquema/releases/latest/download/checksums.txt
+curl -fsSLO https://github.com/ju4n97/hclapi/releases/latest/download/checksums.txt
 
 # Verify checksums
 sha256sum --ignore-missing --check checksums.txt
@@ -234,14 +234,14 @@ sha256sum --ignore-missing --check checksums.txt
 
 ## Shell autocompletion
 
-esquema supports dynamic command completion for subcommands and flags.
+hclapi supports dynamic command completion for subcommands and flags.
 
 ### Bash
 
 Add dynamic completion to your `~/.bashrc`:
 
 ```bash
-echo 'complete -o default -C esquema esquema' >> ~/.bashrc
+echo 'complete -o default -C hclapi hclapi' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -252,15 +252,15 @@ Add the following to your `~/.zshrc`:
 ```zsh
 autoload -Uz +X compinit && compinit
 autoload -Uz +X bashcompinit && bashcompinit
-complete -o default -C esquema esquema
+complete -o default -C hclapi hclapi
 ```
 
 ### Fish
 
-Add the following to `~/.config/fish/completions/esquema.fish`:
+Add the following to `~/.config/fish/completions/hclapi.fish`:
 
 ```fish
-complete -c esquema -f -a '(esquema --generate-shell-completion (commandline -cop))'
+complete -c hclapi -f -a '(hclapi --generate-shell-completion (commandline -cop))'
 ```
 
 ## Man pages
@@ -273,15 +273,15 @@ Linux package installations like `.deb`, `.rpm`, and `.pkg.tar.zst` install man 
 
 ### Manual installation (Linux and macOS)
 
-If you installed esquema via precompiled binary or `go install`, you can install the man page manually:
+If you installed hclapi via precompiled binary or `go install`, you can install the man page manually:
 
 ```bash
 # 1. Create the system man directory
 sudo mkdir -p /usr/local/share/man/man1
 
 # 2. Download the manual page
-sudo curl -fsSL https://raw.githubusercontent.com/ju4n97/esquema/main/man/esquema.1 \
-  -o /usr/local/share/man/man1/esquema.1
+sudo curl -fsSL https://raw.githubusercontent.com/ju4n97/hclapi/main/man/hclapi.1 \
+  -o /usr/local/share/man/man1/hclapi.1
 
 # 3. Update the system man database (optional)
 sudo mandb 2>/dev/null || true
@@ -290,5 +290,5 @@ sudo mandb 2>/dev/null || true
 ### View manual
 
 ```bash
-man esquema
+man hclapi
 ```

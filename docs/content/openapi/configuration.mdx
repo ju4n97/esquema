@@ -73,7 +73,7 @@ openapi {
 }
 ```
 
-If you don't define a `server` block, esquema defaults to `url = "/"`. This keeps the API origin relative so browser portals work without CORS issues.
+If you don't define a `server` block, hclapi defaults to `url = "/"`. This keeps the API origin relative so browser portals work without CORS issues.
 
 ## Exporting with the CLI
 
@@ -81,11 +81,11 @@ You can export the compiled specification directly to a file or standard output 
 
 ```bash
 # Print JSON to stdout
-esquema openapi -c .
+hclapi openapi -c .
 
 # Save JSON specification to file
-esquema openapi -c . -o openapi.json
+hclapi openapi -c . -o openapi.json
 
 # Save YAML specification to file
-esquema openapi -c . -f yaml -o openapi.yaml
+hclapi openapi -c . -f yaml -o openapi.yaml
 ```

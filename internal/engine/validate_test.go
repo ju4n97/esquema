@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/esquema"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // TestEngine_IngressValidation verifies path, query, header, and body constraints and defaults.
@@ -66,12 +66,12 @@ route "POST /accounts/{id}" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("failed to parse manifest: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -159,12 +159,12 @@ route "POST /validate-types" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -230,12 +230,12 @@ route "GET /items/{id}" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -269,12 +269,12 @@ route "POST /upload" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}
@@ -361,12 +361,12 @@ route "POST /webhook" {
 }
 `
 
-	cfg, err := esquema.Parse(manifest)
+	cfg, err := hclapi.Parse(manifest)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	eng, err := esquema.New(cfg)
+	eng, err := hclapi.New(cfg)
 	if err != nil {
 		t.Fatalf("engine init failed: %v", err)
 	}

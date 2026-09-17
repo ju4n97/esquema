@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema"
+	"github.com/ju4n97/hclapi"
 )
 
 // newRoutesCommand prints an inspection table of all compiled endpoints and step pipelines.
@@ -27,7 +27,7 @@ func newRoutesCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			patterns := resolvePatterns(cmd)
 
-			cfg, err := esquema.Load(patterns...)
+			cfg, err := hclapi.Load(patterns...)
 			if err != nil {
 				return err
 			}

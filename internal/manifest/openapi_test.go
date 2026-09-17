@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
 // TestGenerateOpenAPI verifies OpenAPI 3.1 specification compilation, validation, and route filtering.

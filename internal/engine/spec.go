@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ju4n97/esquema/internal/config"
+	"github.com/ju4n97/hclapi/internal/config"
 )
 
 // executeSpec serves pre-cached OpenAPI specifications with ETag 304 caching.

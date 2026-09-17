@@ -1,5 +1,5 @@
-// Package esquema provides an embeddable declarative API runtime powered by HCL.
-package esquema
+// Package hclapi provides an embeddable declarative API runtime powered by HCL.
+package hclapi
 
 import (
 	"database/sql"
@@ -7,10 +7,10 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/engine"
-	"github.com/ju4n97/esquema/internal/manifest"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/engine"
+	"github.com/ju4n97/hclapi/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 type (

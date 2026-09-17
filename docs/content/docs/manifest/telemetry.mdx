@@ -40,7 +40,7 @@ telemetry {
 
 ## Automatic field redaction
 
-When keys matching the `redact` list appear in request headers or log entries, esquema replaces their values with `"[REDACTED]"` before writing the log record:
+When keys matching the `redact` list appear in request headers or log entries, hclapi replaces their values with `"[REDACTED]"` before writing the log record:
 
 ```text
 # Raw incoming header: Authorization: Bearer secret-token-xyz

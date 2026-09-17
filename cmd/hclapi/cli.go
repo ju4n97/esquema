@@ -3,13 +3,13 @@ package main
 import (
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema/internal/version"
+	"github.com/ju4n97/hclapi/internal/version"
 )
 
-// newRootCommand initializes the top-level esquema CLI application.
+// newRootCommand initializes the top-level hclapi CLI application.
 func newRootCommand() *cli.Command {
 	return &cli.Command{
-		Name:                  "esquema",
+		Name:                  "hclapi",
 		Usage:                 "Type-safe, declarative API runtime powered by HCL.",
 		Version:               version.GetVersion(),
 		Suggest:               true,

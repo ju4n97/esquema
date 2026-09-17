@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ju4n97/esquema/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/scalar"
 )
 
 func TestToInt64(t *testing.T) {

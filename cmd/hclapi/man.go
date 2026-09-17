@@ -23,9 +23,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	file, err := os.Create("./man/esquema.1")
+	file, err := os.Create("./man/hclapi.1")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create ./man/esquema.1: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to create ./man/hclapi.1: %v\n", err)
 		os.Exit(1)
 	}
 	defer file.Close()

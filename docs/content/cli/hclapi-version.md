@@ -1,8 +1,8 @@
 ---
-title: esquema version
+title: hclapi version
 ---
 
-<!-- Generated automatically by esquema docs. Do not edit directly. -->
+<!-- Generated automatically by hclapi docs. Do not edit directly. -->
 
 # NAME
 

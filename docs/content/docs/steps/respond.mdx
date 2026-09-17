@@ -48,7 +48,7 @@ respond {
 
 ## Egress masking
 
-When you declare a `schema` on a `respond` step, esquema filters outbound payloads:
+When you declare a `schema` on a `respond` step, hclapi filters outbound payloads:
 
 - Extra columns returned by database queries like `password_hash` or internal tokens are stripped.
 - Only properties declared in the target schema are serialized.

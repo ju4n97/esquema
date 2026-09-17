@@ -1,21 +1,21 @@
 ---
 title: Files and structure
-description: How esquema discovers files, applies ignore patterns, and compiles manifests.
+description: How hclapi discovers files, applies ignore patterns, and compiles manifests.
 ---
 
 # Files and structure
 
-esquema compiles its configuration from a single file, a folder, or glob patterns like `esquema serve ./routes/**/*.hcl`.
+hclapi compiles its configuration from a single file, a folder, or glob patterns like `hclapi serve ./routes/**/*.hcl`.
 
 ## File discovery
 
-When pointing esquema at a directory, the loader finds all files ending in `.hcl`.
+When pointing hclapi at a directory, the loader finds all files ending in `.hcl`.
 
 It automatically skips hidden files or folders starting with a dot, such as `.git` or `.vscode`. Non-manifest files like `.sql` or `.md` aren't loaded.
 
-## The .esquemaignore file
+## The .hclapiignore file
 
-Place a `.esquemaignore` file in your root folder to skip specific files or directories. It supports wildcard matching and negation patterns using `!`:
+Place a `.hclapiignore` file in your root folder to skip specific files or directories. It supports wildcard matching and negation patterns using `!`:
 
 ```text
 # Skip temporary folders
@@ -48,7 +48,7 @@ If a variable isn't set, it evaluates to an empty string.
 
 ## Merging rules and invariants
 
-esquema merges manifests across all discovered files into a single runtime configuration:
+hclapi merges manifests across all discovered files into a single runtime configuration:
 
 1. **Singleton blocks**: The `server`, `openapi`, and `telemetry` blocks are singletons. You can't declare `server` in more than one file across a project.
 2. **Duplicate routes**: Endpoints are identified by method and path, such as `GET /users`. Declaring the exact same route pattern in two files halts boot immediately so you won't get runtime routing collisions.
@@ -58,7 +58,7 @@ esquema merges manifests across all discovered files into a single runtime confi
 
 ```text
 my-api/
-├── .esquemaignore
+├── .hclapiignore
 ├── server.hcl         # server {} and telemetry {}
 ├── connections.hcl    # connection pools
 ├── schemas/

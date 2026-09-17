@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/ju4n97/esquema/internal/ctyconv"
+	"github.com/ju4n97/hclapi/internal/ctyconv"
 )
 
 // TestToCtyAndNative verifies bidirectional conversion between Go native types and cty.Value.

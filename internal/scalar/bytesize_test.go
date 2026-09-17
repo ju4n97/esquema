@@ -5,7 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/ju4n97/esquema/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/scalar"
 )
 
 func TestByteSize_Parse(t *testing.T) {

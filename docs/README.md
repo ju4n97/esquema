@@ -1,6 +1,6 @@
-# esquema docs
+# hclapi docs
 
-This repository contains the esquema documentation site migrated to Rspress 2.
+This repository contains the hclapi documentation site migrated to Rspress 2.
 
 ## Development
 

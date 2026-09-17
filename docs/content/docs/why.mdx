@@ -1,11 +1,11 @@
 ---
-title: Why esquema
-description: Where esquema fits, what it provides, and where traditional frameworks are a better choice.
+title: Why hclapi
+description: Where hclapi fits, what it provides, and where traditional frameworks are a better choice.
 ---
 
-# Why esquema
+# Why hclapi
 
-esquema is designed for creating HTTP APIs over databases and upstream services without writing boilerplate routing, connection pooling, validation models, or DTO mapping layers.
+hclapi is designed for creating HTTP APIs over databases and upstream services without writing boilerplate routing, connection pooling, validation models, or DTO mapping layers.
 
 An API is defined in standard HashiCorp HCL manifests, keeping queries, input validation, and transformations close to the routes that use them.
 
@@ -33,7 +33,7 @@ Every route and step automatically emits OpenTelemetry spans and metrics, while 
 
 ## Where it doesn't fit
 
-esquema is not an all-purpose web framework. Use traditional application code when your service requires:
+hclapi is not an all-purpose web framework. Use traditional application code when your service requires:
 
 - Background worker loops or message bus consumers (Kafka, RabbitMQ).
 - Long-lived stateful connections (WebSockets, gRPC bidirectional streams).

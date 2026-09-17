@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/ju4n97/esquema/internal/ctyconv"
+	"github.com/ju4n97/hclapi/internal/ctyconv"
 )
 
 var pathParamRegex = regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}`)

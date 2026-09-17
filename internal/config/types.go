@@ -1,4 +1,4 @@
-// Package config defines the verified runtime models and enum types for the esquema engine.
+// Package config defines the verified runtime models and enum types for the hclapi engine.
 package config
 
 import (

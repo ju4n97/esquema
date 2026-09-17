@@ -1,21 +1,21 @@
 ---
-title: esquema
+title: hclapi
 ---
 
-<!-- Generated automatically by esquema docs. Do not edit directly. -->
+<!-- Generated automatically by hclapi docs. Do not edit directly. -->
 
 # NAME
 
-esquema - Type-safe, declarative API runtime powered by HCL.
+hclapi - Type-safe, declarative API runtime powered by HCL.
 
 # SYNOPSIS
 
-esquema
+hclapi
 
 **Usage**:
 
 ```
-esquema [GLOBAL OPTIONS] [command [COMMAND OPTIONS]] [ARGUMENTS...]
+hclapi [GLOBAL OPTIONS] [command [COMMAND OPTIONS]] [ARGUMENTS...]
 ```
 
 # COMMANDS

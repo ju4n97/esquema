@@ -6,7 +6,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/esquema/internal/version"
+	"github.com/ju4n97/hclapi/internal/version"
 )
 
 // newVersionCommand outputs build and VCS metadata.

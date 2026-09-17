@@ -7,8 +7,8 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/problem"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 // executeValkey executes caching operations against an active Valkey connection.

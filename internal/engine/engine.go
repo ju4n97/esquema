@@ -21,11 +21,11 @@ import (
 	"go.starlark.net/syntax"
 	_ "modernc.org/sqlite" // SQLite driver
 
-	"github.com/ju4n97/esquema/internal/config"
-	"github.com/ju4n97/esquema/internal/manifest"
-	"github.com/ju4n97/esquema/internal/problem"
-	"github.com/ju4n97/esquema/internal/scalar"
-	"github.com/ju4n97/esquema/internal/telemetry"
+	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/problem"
+	"github.com/ju4n97/hclapi/internal/scalar"
+	"github.com/ju4n97/hclapi/internal/telemetry"
 )
 
 // sqlConnection binds an active database connection pool to its SQL driver dialect.
@@ -208,7 +208,7 @@ func (e *Engine) compileStarlarkScripts() error {
 				continue
 			}
 
-			thread := &starlark.Thread{Name: "esquema-compile"}
+			thread := &starlark.Thread{Name: "hclapi-compile"}
 			filename := fmt.Sprintf("%s_%s.star", ep.Method, s.Name)
 			globals, err := starlark.ExecFileOptions(opts, thread, filename, s.Starlark.Source, nil)
 			if err != nil {
