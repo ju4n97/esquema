@@ -31,7 +31,7 @@ func (c *testHTTPContext) Valkey(name string) (valkey.Client, error) {
 	return nil, errors.New("valkey unconfigured")
 }
 
-func (c *testHTTPContext) GoHandler(name string) (GoHandler, error) {
+func (c *testHTTPContext) GoHandler(name string) (StepHandler, error) {
 	return nil, errors.New("go unconfigured")
 }
 

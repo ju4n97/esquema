@@ -42,7 +42,7 @@ type StepExecutor interface {
 type StepExecutionContext interface {
 	SQL(name string) (*sql.DB, error)
 	Valkey(name string) (valkey.Client, error)
-	GoHandler(name string) (GoHandler, error)
+	GoHandler(name string) (StepHandler, error)
 	HTTPClient() *http.Client
 	ResponseWriter() http.ResponseWriter
 	ResponseController() *http.ResponseController

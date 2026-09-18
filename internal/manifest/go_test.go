@@ -20,7 +20,7 @@ import (
 )
 
 type testGoExecutionContext struct {
-	handlers map[string]GoHandler
+	handlers map[string]StepHandler
 	scope    Scope
 	recorder *httptest.ResponseRecorder
 }
@@ -33,7 +33,7 @@ func (c *testGoExecutionContext) Valkey(name string) (valkey.Client, error) {
 	return nil, errors.New("valkey unconfigured")
 }
 
-func (c *testGoExecutionContext) GoHandler(name string) (GoHandler, error) {
+func (c *testGoExecutionContext) GoHandler(name string) (StepHandler, error) {
 	if c.handlers == nil {
 		return nil, fmt.Errorf("unregistered handler %q", name)
 	}
@@ -249,7 +249,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 	t.Run("executes callback and maps result output using typed generic methods", func(t *testing.T) {
 		t.Parallel()
 
-		handler := func(ctx context.Context, req *GoRequest) (any, error) {
+		handler := func(ctx context.Context, req *StepInput) (any, error) {
 			base := req.Args.GetOr("base", int64(1))
 			mult := req.Args.GetOr("mult", int64(1))
 			return base * mult, nil
@@ -262,7 +262,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 		}
 
 		exec := &testGoExecutionContext{
-			handlers: map[string]GoHandler{"math.multiply": handler},
+			handlers: map[string]StepHandler{"math.multiply": handler},
 			recorder: httptest.NewRecorder(),
 		}
 
@@ -286,7 +286,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 		}
 
 		exec := &testGoExecutionContext{
-			handlers: map[string]GoHandler{},
+			handlers: map[string]StepHandler{},
 			recorder: httptest.NewRecorder(),
 		}
 
@@ -299,7 +299,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 	t.Run("recovers from panic and writes RFC 9457 HTTP 500 Problem Details", func(t *testing.T) {
 		t.Parallel()
 
-		panickingHandler := func(ctx context.Context, req *GoRequest) (any, error) {
+		panickingHandler := func(ctx context.Context, req *StepInput) (any, error) {
 			var ptr *int
 			*ptr = 42
 			return nil, nil
@@ -312,7 +312,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 		exec := &testGoExecutionContext{
-			handlers: map[string]GoHandler{"crash.panic": panickingHandler},
+			handlers: map[string]StepHandler{"crash.panic": panickingHandler},
 			recorder: rec,
 		}
 
@@ -338,7 +338,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 	t.Run("callback returning Problem details streams response and halts", func(t *testing.T) {
 		t.Parallel()
 
-		problemHandler := func(ctx context.Context, req *GoRequest) (any, error) {
+		problemHandler := func(ctx context.Context, req *StepInput) (any, error) {
 			return nil, problem.New(http.StatusPaymentRequired, "Insufficient credits")
 		}
 
@@ -349,7 +349,7 @@ func TestStepGo_ExecuteStep(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 		exec := &testGoExecutionContext{
-			handlers: map[string]GoHandler{"bill.charge": problemHandler},
+			handlers: map[string]StepHandler{"bill.charge": problemHandler},
 			recorder: rec,
 		}
 

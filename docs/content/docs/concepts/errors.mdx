@@ -51,7 +51,7 @@ respond {
 If a native Go step handler returns an instance of `problem.Problem`, the runtime halts the pipeline and streams it directly to the client:
 
 ```go
-func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+func handlePayment(ctx context.Context, in *hclapi.StepInput) (any, error) {
     if !hasSufficientBalance() {
         return nil, problem.New(http.StatusPaymentRequired, "Insufficient account balance")
     }

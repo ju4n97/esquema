@@ -59,7 +59,7 @@ route "GET /spec.json" {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	multHandler := func(ctx context.Context, req *manifest.GoRequest) (any, error) {
+	multHandler := func(ctx context.Context, req *manifest.StepInput) (any, error) {
 		val := req.Args.GetOr("val", int64(1))
 		return map[string]any{"doubled": val * 2}, nil
 	}

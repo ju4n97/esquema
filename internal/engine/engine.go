@@ -23,7 +23,7 @@ import (
 type Option func(*Engine)
 
 // WithGoHandler registers a custom native Go callback by its identifier.
-func WithGoHandler(name string, h manifest.GoHandler) Option {
+func WithGoHandler(name string, h manifest.StepHandler) Option {
 	return func(e *Engine) {
 		e.handlers[name] = h
 	}
@@ -55,7 +55,7 @@ type Engine struct {
 	valkeyPools   map[string]valkey.Client
 	httpTransport *http.Transport
 	httpClient    *http.Client
-	handlers      map[string]manifest.GoHandler
+	handlers      map[string]manifest.StepHandler
 	spec          *openapi.Spec
 	telemetry     *telemetry.Telemetry
 }
@@ -91,7 +91,7 @@ func New(m *manifest.Manifest, opts ...Option) (*Engine, error) {
 		valkeyPools:   make(map[string]valkey.Client),
 		httpTransport: trans,
 		httpClient:    &http.Client{Transport: trans},
-		handlers:      make(map[string]manifest.GoHandler),
+		handlers:      make(map[string]manifest.StepHandler),
 		spec:          spec,
 		telemetry:     tel,
 	}

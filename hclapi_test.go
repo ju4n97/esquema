@@ -46,7 +46,7 @@ route "POST /calculate" {
 		t.Fatalf("hclapi.Parse() error: %v", err)
 	}
 
-	handler := func(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+	handler := func(ctx context.Context, req *hclapi.StepInput) (any, error) {
 		base := req.Args.GetOr("base", int64(1))
 		mult := req.Args.GetOr("mult", int64(1))
 		return map[string]any{"total": base * mult}, nil

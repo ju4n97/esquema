@@ -36,7 +36,7 @@ func (c *testExecutionContext) Valkey(name string) (valkey.Client, error) {
 	return nil, nil
 }
 
-func (c *testExecutionContext) GoHandler(name string) (GoHandler, error) {
+func (c *testExecutionContext) GoHandler(name string) (StepHandler, error) {
 	return nil, nil
 }
 

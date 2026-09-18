@@ -29,7 +29,7 @@ func (c *testRespondExecutionContext) Valkey(name string) (valkey.Client, error)
 	return nil, nil
 }
 
-func (c *testRespondExecutionContext) GoHandler(name string) (GoHandler, error) {
+func (c *testRespondExecutionContext) GoHandler(name string) (StepHandler, error) {
 	return nil, nil
 }
 

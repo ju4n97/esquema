@@ -72,10 +72,10 @@ def execute(ctx):
 In Go callbacks, extract parameters safely using `req.Args`:
 
 ```go
-func handleStep(ctx context.Context, req *hclapi.GoRequest) (any, error) {
-    userID := req.Args.GetOr("id", int64(0))
-    email, ok := req.Args.Get[string]("email")
-    rawRequest := req.Request // Raw standard *http.Request
+func handleStep(ctx context.Context, in *hclapi.StepInput) (any, error) {
+    userID := in.Args.GetOr("id", int64(0))
+    email, ok := in.Args.Get[string]("email")
+    rawRequest := in.Request // Raw standard *http.Request
 
     return map[string]any{"id": userID, "email": email}, nil
 }

@@ -75,11 +75,11 @@ type (
 	// RecordSeq defines the standard Go iterator yielding record items and potential errors.
 	RecordSeq = manifest.RecordSeq
 
-	// GoHandler defines the function signature for custom Go step callbacks registered on the runtime.
-	GoHandler = manifest.GoHandler
+	// StepInput encapsulates the input arguments and active HTTP request passed to a [GoHandler].
+	StepInput = manifest.StepInput
 
-	// GoRequest encapsulates the input arguments and active HTTP request passed to a [GoHandler].
-	GoRequest = manifest.GoRequest
+	// StepHandler defines the function signature for custom Go step callbacks registered on the runtime.
+	StepHandler = manifest.StepHandler
 
 	// Args represents evaluated key-value arguments supplied to a native Go step handler.
 	Args = manifest.Args
@@ -134,12 +134,12 @@ func CompileSpec(m *Manifest) (*Spec, error) {
 }
 
 // WithGoHandler registers a custom native Go callback by its identifier.
-func WithGoHandler(name string, h GoHandler) Option {
+func WithGoHandler(name string, h StepHandler) Option {
 	return engine.WithGoHandler(name, h)
 }
 
 // WithStep is an alias for [WithGoHandler].
-func WithStep(name string, h GoHandler) Option {
+func WithStep(name string, h StepHandler) Option {
 	return engine.WithGoHandler(name, h)
 }
 

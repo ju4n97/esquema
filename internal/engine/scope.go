@@ -23,7 +23,7 @@ import (
 type Dependencies struct {
 	SQL        map[string]*sql.DB
 	Valkey     map[string]valkey.Client
-	Handlers   map[string]manifest.GoHandler
+	Handlers   map[string]manifest.StepHandler
 	Schemas    map[string]manifest.Schema
 	Spec       *openapi.Spec
 	HTTPClient *http.Client
@@ -151,7 +151,7 @@ func (c *Context) Valkey(name string) (valkey.Client, error) {
 }
 
 // GoHandler implements [manifest.StepExecutionContext] and returns a registered Go callback.
-func (c *Context) GoHandler(name string) (manifest.GoHandler, error) {
+func (c *Context) GoHandler(name string) (manifest.StepHandler, error) {
 	if c.deps.Handlers == nil {
 		return nil, fmt.Errorf("unregistered go handler %q", name)
 	}

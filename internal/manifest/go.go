@@ -244,15 +244,15 @@ func toFloat64(val any) (float64, bool) {
 	return 0, false
 }
 
-// GoRequest encapsulates the input arguments and active HTTP request passed to a [GoHandler].
-type GoRequest struct {
+// StepInput encapsulates the input arguments and active HTTP request passed to a [StepHandler].
+type StepInput struct {
 	Name    string
 	Args    Args
 	Request *http.Request
 }
 
-// GoHandler defines the function signature for custom Go step callbacks registered on the runtime.
-type GoHandler func(ctx context.Context, req *GoRequest) (any, error)
+// StepHandler defines the function signature for custom Go step callbacks registered on the runtime.
+type StepHandler func(ctx context.Context, in *StepInput) (any, error)
 
 // StepGo invokes a custom Go callback function registered on the runtime engine.
 type StepGo struct {
@@ -302,7 +302,7 @@ func (g *StepGo) ExecuteStep(ctx context.Context, ec StepExecutionContext) (res 
 		evalArgs = m
 	}
 
-	req := &GoRequest{
+	req := &StepInput{
 		Name: g.Name,
 		Args: Args(evalArgs),
 	}

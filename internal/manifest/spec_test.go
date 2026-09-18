@@ -31,7 +31,7 @@ func (c *testSpecContext) Valkey(name string) (valkey.Client, error) {
 	return nil, nil
 }
 
-func (c *testSpecContext) GoHandler(name string) (GoHandler, error) {
+func (c *testSpecContext) GoHandler(name string) (StepHandler, error) {
 	return nil, nil
 }
 

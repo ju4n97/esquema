@@ -133,7 +133,7 @@ func TestContext_StepExecutionContextMethods(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	handler := func(ctx context.Context, req *manifest.GoRequest) (any, error) {
+	handler := func(ctx context.Context, req *manifest.StepInput) (any, error) {
 		return "handler_ok", nil
 	}
 
@@ -146,7 +146,7 @@ func TestContext_StepExecutionContextMethods(t *testing.T) {
 
 	deps := Dependencies{
 		SQL:      map[string]*sql.DB{"primary": db},
-		Handlers: map[string]manifest.GoHandler{"test.handler": handler},
+		Handlers: map[string]manifest.StepHandler{"test.handler": handler},
 		Schemas:  map[string]manifest.Schema{"Item": {Name: "Item"}},
 		Spec:     spec,
 	}

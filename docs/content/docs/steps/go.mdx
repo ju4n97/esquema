@@ -23,13 +23,13 @@ go "compute_tax" {
 Register handlers using the `hclapi.WithStep` or `hclapi.WithGoHandler` option:
 
 ```go
-func(ctx context.Context, req *hclapi.GoRequest) (any, error)
+func(ctx context.Context, in *hclapi.StepInput) (any, error)
 ```
 
-The `*hclapi.GoRequest` struct exposes:
+The `*hclapi.StepInput` struct exposes:
 
 ```go
-type GoRequest struct {
+type StepInput struct {
     Name    string        // Step name declared in manifest
     Args    Args          // Evaluated arguments from HCL args map
     Request *http.Request // Raw standard *http.Request
@@ -41,14 +41,14 @@ type GoRequest struct {
 `req.Args` provides typed helpers with automatic coercion:
 
 ```go
-func calculateTax(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+func calculateTax(ctx context.Context, in *hclapi.StepInput) (any, error) {
     // Typed extraction with fallback
-    amount := req.Args.GetOr("amount", 0.0)
-    country := req.Args.GetOr("country", "CO")
+    amount := in.Args.GetOr("amount", 0.0)
+    country := in.Args.GetOr("country", "CO")
 
     // Bind all arguments into a destination struct
     var params TaxParams
-    if err := req.Args.Bind(&params); err != nil {
+    if err := in.Args.Bind(&params); err != nil {
         return nil, err
     }
 

@@ -34,7 +34,7 @@ func run() error {
 		return fmt.Errorf("load manifests: %w", err)
 	}
 
-	marsAgeHandler := func(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+	marsAgeHandler := func(ctx context.Context, req *hclapi.StepInput) (any, error) {
 		earthYears, ok := req.Args.Get[float64]("earth_years")
 		if !ok {
 			return nil, errors.New("missing or invalid 'earth_years' argument")

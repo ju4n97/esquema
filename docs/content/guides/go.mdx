@@ -72,8 +72,8 @@ func main() {
 	_ = srv.Shutdown(shutdownCtx)
 }
 
-func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
-	amount := req.Args.GetOr("amount", int64(0))
+func handlePayment(ctx context.Context, in *hclapi.StepInput) (any, error) {
+	amount := in.Args.GetOr("amount", int64(0))
 	return map[string]any{"charged": amount, "status": "success"}, nil
 }
 ```
@@ -101,13 +101,13 @@ route "POST /checkout" {
 Go step handlers use this signature:
 
 ```go
-func(ctx context.Context, req *hclapi.GoRequest) (any, error)
+func(ctx context.Context, in *hclapi.StepInput) (any, error)
 ```
 
-The `*hclapi.GoRequest` struct exposes:
+The `*hclapi.StepInput` struct exposes:
 
 ```go
-type GoRequest struct {
+type StepInput struct {
     Name    string        // Step name declared in manifest
     Args    Args          // Evaluated arguments from HCL args map
     Request *http.Request // Raw standard *http.Request
@@ -119,18 +119,18 @@ type GoRequest struct {
 `req.Args` provides typed, panic-safe helpers with automatic type coercion:
 
 ```go
-func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+func handlePayment(ctx context.Context, in *hclapi.StepInput) (any, error) {
     // Direct typed extraction with presence check
-    currency, ok := req.Args.Get[string]("currency")
+    currency, ok := in.Args.Get[string]("currency")
     if !ok {
         currency = "USD"
     }
 
     // Safe extraction with typed fallback
-    amount := req.Args.GetOr("amount", int64(0))
+    amount := in.Args.GetOr("amount", int64(0))
 
     // Typed slice extraction
-    tags := req.Args.Slice[string]("tags")
+    tags := in.Args.Slice[string]("tags")
 
     // One-line struct binding
     type ChargeParams struct {
@@ -138,7 +138,7 @@ func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
         Currency string `json:"currency"`
     }
     var params ChargeParams
-    if err := req.Args.Bind(&params); err != nil {
+    if err := in.Args.Bind(&params); err != nil {
         return nil, err
     }
 
@@ -151,8 +151,8 @@ func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
 If a Go callback encounters a business logic error (e.g. payment failure), return an instance of `problem.Problem` to stream a structured error:
 
 ```go
-func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
-    if req.Args.GetOr("amount", int64(0)) <= 0 {
+func handlePayment(ctx context.Context, req *hclapi.StepInput) (any, error) {
+    if in.Args.GetOr("amount", int64(0)) <= 0 {
         return nil, problem.New(http.StatusBadRequest, "Charge amount must be positive")
     }
     return map[string]any{"success": true}, nil

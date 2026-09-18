@@ -22,7 +22,7 @@ type testDocsContext struct {
 
 func (c *testDocsContext) SQL(name string) (*sql.DB, error)                  { return nil, nil }
 func (c *testDocsContext) Valkey(name string) (valkey.Client, error)         { return nil, nil }
-func (c *testDocsContext) GoHandler(name string) (GoHandler, error)          { return nil, nil }
+func (c *testDocsContext) GoHandler(name string) (StepHandler, error)        { return nil, nil }
 func (c *testDocsContext) HTTPClient() *http.Client                          { return http.DefaultClient }
 func (c *testDocsContext) ResponseWriter() http.ResponseWriter               { return c.recorder }
 func (c *testDocsContext) ResponseController() *http.ResponseController      { return nil }

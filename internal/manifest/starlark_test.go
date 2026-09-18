@@ -28,7 +28,7 @@ func (c *testStarlarkContext) Valkey(name string) (valkey.Client, error) {
 	return nil, errors.New("valkey unconfigured")
 }
 
-func (c *testStarlarkContext) GoHandler(name string) (GoHandler, error) {
+func (c *testStarlarkContext) GoHandler(name string) (StepHandler, error) {
 	return nil, errors.New("go unconfigured")
 }
 

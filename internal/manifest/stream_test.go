@@ -29,7 +29,7 @@ func (c *testStreamContext) Valkey(name string) (valkey.Client, error) {
 	return nil, errors.New("valkey unconfigured")
 }
 
-func (c *testStreamContext) GoHandler(name string) (GoHandler, error) {
+func (c *testStreamContext) GoHandler(name string) (StepHandler, error) {
 	return nil, errors.New("go unconfigured")
 }
 
