@@ -1,51 +1,47 @@
 ---
 title: telemetry
-description: Logging levels, JSON output formats, and sensitive field redaction rules.
+description: Logging levels, formats, OpenTelemetry service names, and field redaction rules.
 ---
 
 # telemetry
 
-The `telemetry` block configures structured access logging, service names for tracing, and sensitive attribute redaction.
+The `telemetry` block configures structured access logging, service names for distributed tracing, and sensitive attribute redaction.
 
 ```hcl
 telemetry {
   service_name = "store-api"
-
-  logging {
-    level  = "info"
-    format = "json"
-    redact = [
-      "password",
-      "authorization",
-      "x-api-key",
-      "credit_card"
-    ]
-  }
+  log_level    = "info"
+  log_format   = "json"
+  redact = [
+    "password",
+    "authorization",
+    "x-api-key",
+    "credit_card"
+  ]
 }
 ```
 
-## Top level attributes
+## Attributes
 
-| Attribute      | Type     | Default | Description                                     |
-| :------------- | :------- | :------ | :---------------------------------------------- |
-| `service_name` | `string` | `""`    | Service identifier used in OpenTelemetry traces |
-
-## Logging attributes
-
-| Attribute | Type     | Default  | Description                                                    |
-| :-------- | :------- | :------- | :------------------------------------------------------------- |
-| `level`   | `string` | `"info"` | Minimum log level: `"debug"`, `"info"`, `"warn"`, or `"error"` |
-| `format`  | `string` | `"text"` | Log encoding: `"json"` or `"text"`                             |
-| `redact`  | `list`   | `[]`     | List of sensitive field names or headers to scrub              |
+| Attribute      | Type     | Default  | Description                                                    |
+| :------------- | :------- | :------- | :------------------------------------------------------------- |
+| `service_name` | `string` | `""`     | Service identifier attached to OpenTelemetry spans and logs    |
+| `log_level`    | `string` | `"info"` | Minimum log level: `"debug"`, `"info"`, `"warn"`, or `"error"` |
+| `log_format`   | `string` | `"text"` | Log encoding format: `"json"` or `"text"`                      |
+| `redact`       | `list`   | `[]`     | Sensitive key names or headers to scrub from log output        |
 
 ## Automatic field redaction
 
-When keys matching the `redact` list appear in request headers or log entries, hclapi replaces their values with `"[REDACTED]"` before writing the log record:
+When keys matching the `redact` list appear in request attributes, headers, or log statements, hclapi replaces their values with `"[REDACTED]"` before writing the log record:
 
-```text
-# Raw incoming header: Authorization: Bearer secret-token-xyz
-# Emitted access log:
-{"level":"INFO","msg":"http_request","path":"/users","headers":{"Authorization":"[REDACTED]"}}
+```json
+{
+  "time": "2026-09-18T12:00:00Z",
+  "level": "INFO",
+  "msg": "http_request",
+  "path": "/users",
+  "status": 200,
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7"
+}
 ```
-
-Sensitive tokens won't leak into log aggregators like Loki or Datadog.

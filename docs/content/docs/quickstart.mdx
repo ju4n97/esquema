@@ -13,7 +13,7 @@ This guide walks through creating an HCL manifest, starting the HTTP service, an
 
 ### 1. Create a manifest
 
-Create a project directory and a `main.hcl` file:
+Create a project directory and an `app.hcl` file:
 
 ```bash
 mkdir hclapi-quickstart && cd hclapi-quickstart
@@ -39,7 +39,7 @@ route "GET /health" {
 }
 
 route "POST /transform" {
-  step "starlark" "sanitize" {
+  starlark "sanitize" {
     source = <<-STARLARK
       def execute(ctx):
         body = ctx["request"]["body"]
@@ -70,14 +70,8 @@ hclapi serve app.hcl
 Output:
 
 ```text
-{"time":"...","level":"INFO","msg":"compiling hclapi manifests","targets":["app.hcl"]}
-{"time":"...","level":"INFO","msg":"server listening","addr":"127.0.0.1:8080","endpoints":2}
-```
-
-Host and port can also be overridden via CLI flags:
-
-```bash
-hclapi serve app.hcl --port 9000 --host 0.0.0.0
+time=2026-09-18T07:00:00.000Z level=INFO msg="compiling hclapi manifests" targets=["app.hcl"]
+time=2026-09-18T07:00:00.001Z level=INFO msg="server listening" addr="127.0.0.1:8080" routes=2 connections=0
 ```
 
 ### 3. Call the endpoints
@@ -90,9 +84,9 @@ curl -i http://localhost:8080/health
 
 ```http
 HTTP/1.1 200 OK
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
-{"status":"healthy","timestamp":"2026-09-15T07:42:00Z"}
+{"status":"healthy","timestamp":"2026-09-18T12:00:00Z"}
 ```
 
 Call the transform route with a payload:
@@ -105,12 +99,12 @@ curl -i -X POST http://localhost:8080/transform \
 
 ```http
 HTTP/1.1 200 OK
-Content-Type: application/json
+Content-Type: application/json; charset=utf-8
 
 {"count":3,"tags":["env:prod","env:staging","env:dev"]}
 ```
 
-If you send malformed JSON, `hclapi` rejects it with an RFC 9457 `400 Bad Request` before the pipeline executes:
+If you send malformed JSON, `hclapi` rejects it with an RFC 9457 `400 Bad Request` problem before the pipeline executes:
 
 ```bash
 curl -i -X POST http://localhost:8080/transform \

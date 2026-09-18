@@ -1,77 +1,175 @@
-// Package hclapi provides an embeddable declarative API runtime powered by HCL.
+// Package hclapi provides a type-safe, declarative HTTP API engine powered by HashiCorp HCL.
+// It compiles HCL manifests into instant HTTP services backed by relational databases,
+// Valkey/Redis caching, sandboxed Starlark transformations, and zero-drift OpenAPI 3.1 specifications.
 package hclapi
 
 import (
-	"database/sql"
-	"log/slog"
+	"net/http"
 
-	"github.com/valkey-io/valkey-go"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/ju4n97/hclapi/internal/config"
 	"github.com/ju4n97/hclapi/internal/engine"
 	"github.com/ju4n97/hclapi/internal/manifest"
+	"github.com/ju4n97/hclapi/internal/openapi"
 	"github.com/ju4n97/hclapi/internal/problem"
+	"github.com/ju4n97/hclapi/internal/telemetry"
 )
 
 type (
-	// Engine handles routing, connection pooling, and pipeline execution.
-	Engine = engine.Engine
+	// Manifest represents the compiled, validated AST for an entire API service.
+	Manifest = manifest.Manifest
 
-	// Config represents the verified runtime configuration.
-	Config = config.Config
+	// Server defines listener addresses, transport limits, and network timeouts.
+	Server = manifest.Server
 
-	// Step holds execution parameters and HTTP request context for Go callbacks.
-	Step = engine.Step
+	// OpenAPI holds document metadata exported into OpenAPI 3.1 specifications.
+	OpenAPI = manifest.OpenAPI
 
-	// Args provides type-safe, generic argument extraction and coercion for Go steps.
-	Args = engine.Args
+	// Telemetry configures structured logging output, log level thresholds, and key redaction.
+	Telemetry = manifest.Telemetry
 
-	// StepHandler defines custom Go step functions.
-	StepHandler = engine.StepHandler
+	// TelemetryService coordinates runtime logging, OpenTelemetry tracing, and panic recovery middleware.
+	TelemetryService = telemetry.Telemetry
 
-	// Problem represents an RFC 9457 Problem Details error payload.
+	// Connection defines external database connection pools and cache instances.
+	Connection = manifest.Connection
+
+	// Schema represents a reusable domain model for payload validation and egress filtering.
+	Schema = manifest.Schema
+
+	// Field specifies validation constraints and documentation metadata for a model attribute.
+	Field = manifest.Field
+
+	// Route binds an HTTP method and URL pattern to an ordered pipeline of steps.
+	Route = manifest.Route
+
+	// Request defines validation constraints across incoming HTTP request coordinates.
+	Request = manifest.Request
+
+	// Step defines the minimal AST node contract for a route task.
+	Step = manifest.Step
+
+	// StepValidator is an optional interface implemented by AST step definitions
+	// that require semantic verification against the compiled manifest topology.
+	StepValidator = manifest.StepValidator
+
+	// StepExecutor is implemented by steps that execute runtime request logic.
+	StepExecutor = manifest.StepExecutor
+
+	// StepExecutionContext supplies runtime dependencies and request state to steps during execution.
+	StepExecutionContext = manifest.StepExecutionContext
+
+	// StepRegistry manages step decoders and generates dynamic HCL block schemas without global state.
+	StepRegistry = manifest.StepRegistry
+
+	// StepDecoder decodes an HCL block into a concrete [Step] implementation.
+	StepDecoder = manifest.StepDecoder
+
+	// Parser coordinates file discovery, HCL parsing, and AST compilation using a configurable [StepRegistry].
+	Parser = manifest.Parser
+
+	// Expr represents a compiled HCL expression ready for evaluation against an execution scope.
+	Expr = manifest.Expr
+
+	// RecordSeq defines the standard Go iterator yielding record items and potential errors.
+	RecordSeq = manifest.RecordSeq
+
+	// GoHandler defines the function signature for custom Go step callbacks registered on the runtime.
+	GoHandler = manifest.GoHandler
+
+	// GoRequest encapsulates the input arguments and active HTTP request passed to a [GoHandler].
+	GoRequest = manifest.GoRequest
+
+	// Args represents evaluated key-value arguments supplied to a native Go step handler.
+	Args = manifest.Args
+
+	// Duration wraps time.Duration to represent human-configured intervals.
+	Duration = manifest.Duration
+
+	// ByteSize represents a quantity of bytes.
+	ByteSize = manifest.ByteSize
+
+	// Problem represents an RFC 9457 compliant HTTP error payload.
 	Problem = problem.Problem
 
-	// Option configures an Engine instance.
+	// InvalidParam describes a single schema constraint violation for 422 Unprocessable Entity responses.
+	InvalidParam = problem.InvalidParam
+
+	// Spec represents a compiled, validated OpenAPI 3.1 specification ready for serving.
+	Spec = openapi.Spec
+
+	// Engine coordinates HTTP routing, connection pool lifecycles, and request execution.
+	// It implements the standard [http.Handler] interface.
+	Engine = engine.Engine
+
+	// Option configures an [Engine] during initialization.
 	Option = engine.Option
 )
 
-// WithLogger sets the structured logger for the engine.
-func WithLogger(logger *slog.Logger) Option {
-	return engine.WithLogger(logger)
-}
+// ErrPipelineHalted signals that a terminal step or error catch completed the response.
+var ErrPipelineHalted = manifest.ErrPipelineHalted
 
-// WithValkey registers a pre-configured Valkey client for custom connection management.
-func WithValkey(name string, client valkey.Client) Option {
-	return engine.WithValkey(name, client)
-}
-
-// WithStep registers a named Go step handler available to "go" steps.
-func WithStep(name string, handler StepHandler) Option {
-	return engine.WithStep(name, handler)
-}
-
-// Load discovers, compiles, and validates manifests from files, directories, or globs.
-func Load(patterns ...string) (*Config, error) {
+// Load discovers, reads, merges, and compiles HCL files matching the supplied patterns
+// into a validated [Manifest] using default built-in steps.
+func Load(patterns ...string) (*Manifest, error) {
 	return manifest.Load(patterns...)
 }
 
-// Parse compiles an in-memory HCL manifest string into a verified Config.
-func Parse(source string) (*Config, error) {
+// Parse compiles an in-memory HCL manifest string into a validated [Manifest] using default built-in steps.
+func Parse(source string) (*Manifest, error) {
 	return manifest.Parse(source)
 }
 
-// New initializes an executable Engine from a verified Config.
-func New(cfg *Config, opts ...Option) (*Engine, error) {
-	return engine.New(cfg, opts...)
+// New initializes an [Engine] from a validated [Manifest], opening connection pools,
+// configuring telemetry, precompiling OpenAPI specifications, and binding routes.
+func New(m *Manifest, opts ...Option) (*Engine, error) {
+	return engine.New(m, opts...)
 }
 
-// SQL retrieves an active *sql.DB connection pool by connection name.
-func SQL(e *Engine, name string) (*sql.DB, bool) {
-	return e.SQL(name)
+// CompileSpec builds a validated OpenAPI 3.1 specification from a compiled [Manifest],
+// serializing both JSON and YAML documents with calculated SHA-256 ETags.
+func CompileSpec(m *Manifest) (*Spec, error) {
+	return openapi.Compile(m)
 }
 
-// Valkey retrieves an active Valkey client by connection name.
-func Valkey(e *Engine, name string) (valkey.Client, bool) {
-	return e.Valkey(name)
+// WithGoHandler registers a custom native Go callback by its identifier.
+func WithGoHandler(name string, h GoHandler) Option {
+	return engine.WithGoHandler(name, h)
+}
+
+// WithStep is an alias for [WithGoHandler].
+func WithStep(name string, h GoHandler) Option {
+	return engine.WithGoHandler(name, h)
+}
+
+// WithHTTPClient overrides the default HTTP client used for outbound requests.
+func WithHTTPClient(client *http.Client) Option {
+	return engine.WithHTTPClient(client)
+}
+
+// WithTelemetry overrides the default telemetry instance configured by the manifest.
+func WithTelemetry(t *TelemetryService) Option {
+	return engine.WithTelemetry(t)
+}
+
+// NewStepRegistry returns an empty, isolated step registry for custom language extensions.
+func NewStepRegistry() *StepRegistry {
+	return manifest.NewStepRegistry()
+}
+
+// DefaultStepRegistry returns a pre-configured registry containing all standard built-in steps
+// (sql, http, valkey, starlark, go, stream, respond, docs, spec).
+func DefaultStepRegistry() *StepRegistry {
+	return manifest.DefaultStepRegistry()
+}
+
+// NewParser constructs a [Parser] configured with the supplied [StepRegistry].
+func NewParser(registry *StepRegistry) *Parser {
+	return manifest.NewParser(registry)
+}
+
+// NewExpr compiles an HCL expression and optional function registry into an [Expr].
+func NewExpr(raw hcl.Expression, funcs map[string]function.Function) Expr {
+	return manifest.NewExpr(raw, funcs)
 }

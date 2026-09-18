@@ -16,49 +16,65 @@ respond {
 
 respond {
   status = 200
-  schema = "[]User"
+  schema = list(User)
   body   = steps.fetch.rows
 }
 ```
 
 ## Attributes
 
-| Attribute | Type     | Default | Description                               |
-| :-------- | :------- | :------ | :---------------------------------------- |
-| `status`  | `int`    | `200`   | HTTP response status code                 |
-| `headers` | `map`    | `{}`    | Static or dynamic HTTP response headers   |
-| `body`    | `any`    | `null`  | Payload to serialize                      |
-| `schema`  | `string` | `""`    | Schema name used for egress field masking |
-| `when`    | `bool`   | `true`  | Conditional expression                    |
+| Attribute | Type   | Default | Description                                  |
+| :-------- | :----- | :------ | :------------------------------------------- |
+| `status`  | `int`  | `200`   | HTTP response status code                    |
+| `headers` | `map`  | `{}`    | Static or dynamic HTTP response headers      |
+| `body`    | `any`  | `null`  | Payload to serialize                         |
+| `schema`  | `type` | `null`  | Named schema or `list(T)` for egress masking |
+| `when`    | `bool` | `true`  | Conditional expression                       |
 
-## Streaming raw non-JSON payloads
+## Egress masking with schemas
 
-If `headers` sets a non-JSON `Content-Type`, `respond` streams strings and byte slices directly without wrapping them in JSON quotes:
+When you specify a `schema` on a `respond` step, hclapi filters outbound payloads:
+
+- Extra columns returned by database queries (like `password_hash` or internal tokens) are stripped.
+- Only properties declared in the target schema model are serialized.
 
 ```hcl
+# Single entity masking
 respond {
   status = 200
-  headers = {
-    "Content-Type"        = "text/csv"
-    "Content-Disposition" = "attachment; filename=\"report.csv\""
-  }
-  body = "id,name\n1,alice"
+  schema = User
+  body   = steps.fetch_user.row
+}
+
+# Collection masking
+respond {
+  status = 200
+  schema = list(User)
+  body   = steps.list_users.rows
 }
 ```
 
-## Egress masking
+## Inline schema definition
 
-When you declare a `schema` on a `respond` step, hclapi filters outbound payloads:
-
-- Extra columns returned by database queries like `password_hash` or internal tokens are stripped.
-- Only properties declared in the target schema are serialized.
-
-Array schemas use the `[]` prefix:
+You can define egress masking fields directly inline without creating a global schema model:
 
 ```hcl
 respond {
-  status = 200
-  schema = "[]User"
-  body   = steps.list_users.rows
+  status = 201
+
+  schema {
+    field "message" {
+      type = string
+    }
+    field "user" {
+      type = User
+    }
+  }
+
+  body = {
+    message      = "User registered"
+    secret_token = "dropped_by_mask"
+    user         = steps.create.row
+  }
 }
 ```

@@ -5,17 +5,17 @@ description: Sandboxed Python-like scripts for data transformation.
 
 # starlark
 
-The `starlark` step runs data transformation logic inside an isolated, deterministic Starlark virtual machine. Scripts are precompiled once at boot time, so you won't pay parsing overhead on individual requests.
+The `starlark` step runs data transformation logic inside an isolated, deterministic Starlark virtual machine. Scripts are precompiled once at boot time with zero runtime parsing overhead.
 
 ```hcl
-step "starlark" "sanitize" {
+starlark "sanitize" {
   source = <<-STARLARK
     def execute(ctx):
       body = ctx["request"]["body"]
       clean_email = body.get("email", "").strip().lower()
       return {
-          "email": clean_email,
-          "domain": clean_email.split("@")[-1],
+        "email": clean_email,
+        "domain": clean_email.split("@")[-1],
       }
   STARLARK
 }
@@ -36,6 +36,6 @@ step "starlark" "sanitize" {
 
 ## Sandboxing rules
 
-1. **No host access**: Starlark can't touch the host filesystem, environment variables, or network sockets.
+1. **No host access**: Starlark cannot touch the host filesystem, environment variables, or network sockets.
 2. **Instruction limit**: Execution is capped at 100,000 steps. Runaway loops or unbounded recursion halt immediately with an error rather than hanging your server.
-3. **Context access**: The `ctx` argument provides dictionary access to `ctx["request"]` and prior step outputs via `ctx["steps"]`.
+3. **Context access**: The `ctx` argument provides dictionary access to `ctx["request"]`, `ctx["timestamp"]`, `ctx["now"]`, and prior step outputs via `ctx["steps"]`.

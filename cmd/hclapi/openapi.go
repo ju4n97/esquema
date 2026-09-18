@@ -8,10 +8,9 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ju4n97/hclapi/internal/manifest"
+	"github.com/ju4n97/hclapi"
 )
 
-// newOpenAPICommand exports the OpenAPI 3.1 specification for the compiled manifests.
 func newOpenAPICommand() *cli.Command {
 	return &cli.Command{
 		Name:      "openapi",
@@ -39,15 +38,21 @@ func newOpenAPICommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			patterns := resolvePatterns(cmd)
 
-			cfg, err := manifest.Load(patterns...)
+			m, err := hclapi.Load(patterns...)
 			if err != nil {
 				return fmt.Errorf("compile manifests: %w", err)
 			}
 
-			format := strings.ToLower(cmd.String("format"))
-			outBytes, err := manifest.GenerateOpenAPI(cfg, format)
+			spec, err := hclapi.CompileSpec(m)
 			if err != nil {
-				return fmt.Errorf("generate openapi: %w", err)
+				return fmt.Errorf("generate openapi specification: %w", err)
+			}
+
+			var outBytes []byte
+			if strings.EqualFold(cmd.String("format"), "yaml") {
+				outBytes = spec.YAML
+			} else {
+				outBytes = spec.JSON
 			}
 
 			targetFile := cmd.String("output")
@@ -57,10 +62,10 @@ func newOpenAPICommand() *cli.Command {
 			}
 
 			if err := os.WriteFile(targetFile, outBytes, 0o600); err != nil {
-				return fmt.Errorf("write output file %q: %w", targetFile, err)
+				return fmt.Errorf("write specification file %q: %w", targetFile, err)
 			}
 
-			fmt.Fprintf(os.Stderr, "OpenAPI specification written to %s\n", targetFile)
+			fmt.Fprintf(os.Stderr, "OpenAPI 3.1 specification written to %s (ETag: %s)\n", targetFile, spec.JSONETag)
 			return nil
 		},
 	}

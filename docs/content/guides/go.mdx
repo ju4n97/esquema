@@ -5,11 +5,9 @@ description: Embed hclapi as an HTTP handler in your Go service and register nat
 
 # Go integration
 
-You can embed hclapi directly into an existing Go application as a standard library. It mounts on any standard `http.ServeMux`, reuses managed connection pools, and lets you call Go code from your HCL routes.
+You can embed hclapi directly into an existing Go application as a standard library. It mounts on any standard `http.ServeMux` or third-party router (Chi, Echo, Gin), reuses managed connection pools, and lets you invoke custom Go functions directly from HCL pipelines.
 
 ## Installation
-
-Add the module to your `go.mod`:
 
 ```bash
 go get github.com/ju4n97/hclapi
@@ -17,7 +15,7 @@ go get github.com/ju4n97/hclapi
 
 ## Embedding in an existing Go service
 
-`*hclapi.Engine` implements Go's standard `http.Handler` interface, so you can pass it straight to `http.ListenAndServe` or mount it under an existing router:
+`*hclapi.Engine` implements standard `http.Handler`:
 
 ```go
 package main
@@ -35,14 +33,14 @@ import (
 )
 
 func main() {
-	// 1. Load and compile manifests
-	cfg, err := hclapi.Load("./routes/**/*.hcl")
+	// Load and compile manifests
+	manifest, err := hclapi.Load("./routes/**/*.hcl")
 	if err != nil {
 		log.Fatalf("failed to compile manifests: %v", err)
 	}
 
-	// 2. Initialize engine with custom step handlers
-	app, err := hclapi.New(cfg,
+	// Initialize engine with custom step handlers and options
+	app, err := hclapi.New(manifest,
 		hclapi.WithStep("payments.charge", handlePayment),
 	)
 	if err != nil {
@@ -50,12 +48,12 @@ func main() {
 	}
 	defer app.Close()
 
-	// 3. Mount onto a standard Go HTTP server
+	// Mount onto a standard Go HTTP server
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      app,
-		ReadTimeout:  cfg.Server.ReadTimeout.Duration(),
-		WriteTimeout: cfg.Server.WriteTimeout.Duration(),
+		ReadTimeout:  manifest.Server.ReadTimeout.Duration(),
+		WriteTimeout: manifest.Server.WriteTimeout.Duration(),
 	}
 
 	stop := make(chan os.Signal, 1)
@@ -64,7 +62,7 @@ func main() {
 	go func() {
 		log.Println("server listening on :8080")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server crash: %v", err)
+			log.Fatalf("server crashed: %v", err)
 		}
 	}()
 
@@ -74,19 +72,19 @@ func main() {
 	_ = srv.Shutdown(shutdownCtx)
 }
 
-func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
-	amount := step.Args.GetOr("amount", 0)
+func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+	amount := req.Args.GetOr("amount", int64(0))
 	return map[string]any{"charged": amount, "status": "success"}, nil
 }
 ```
 
-## Registering custom step handlers
+## Calling custom Go functions from manifests
 
-In your HCL manifest, invoke the registered Go function by its key:
+Invoke registered Go callbacks using the `go` step keyword:
 
 ```hcl
 route "POST /checkout" {
-  step "go" "process_charge" {
+  go "process_charge" {
     use = "payments.charge"
     args = {
       amount = ctx.request.body.amount
@@ -103,105 +101,77 @@ route "POST /checkout" {
 Go step handlers use this signature:
 
 ```go
-func(ctx context.Context, step *hclapi.Step) (any, error)
+func(ctx context.Context, req *hclapi.GoRequest) (any, error)
 ```
 
-The `*hclapi.Step` struct exposes:
+The `*hclapi.GoRequest` struct exposes:
 
 ```go
-type Step struct {
+type GoRequest struct {
     Name    string        // Step name declared in manifest
     Args    Args          // Evaluated arguments from HCL args map
-    Request *http.Request // Full incoming standard HTTP request
+    Request *http.Request // Raw standard *http.Request
 }
 ```
 
-## Argument extraction with step.Args
+## Working with `req.Args`
 
-`step.Args` gives you typed, panic-safe helpers with automatic coercion:
+`req.Args` provides typed, panic-safe helpers with automatic type coercion:
 
 ```go
-func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
-    // 1. Direct typed fetch with success flag
-    currency, ok := step.Args.Get[string]("currency")
+func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+    // Direct typed extraction with presence check
+    currency, ok := req.Args.Get[string]("currency")
     if !ok {
         currency = "USD"
     }
 
-    // 2. Safe extraction with typed fallback
-    amount := step.Args.GetOr("amount", int64(0))
+    // Safe extraction with typed fallback
+    amount := req.Args.GetOr("amount", int64(0))
 
-    // 3. Typed slice extraction
-    tags := step.Args.Slice[string]("tags")
+    // Typed slice extraction
+    tags := req.Args.Slice[string]("tags")
 
-    // 4. Check presence
-    if step.Args.Has("metadata") {
-        // ...
+    // One-line struct binding
+    type ChargeParams struct {
+        Amount   int64  `json:"amount"`
+        Currency string `json:"currency"`
+    }
+    var params ChargeParams
+    if err := req.Args.Bind(&params); err != nil {
+        return nil, err
     }
 
     return map[string]any{"id": "ch_123", "currency": currency, "amount": amount}, nil
 }
 ```
 
-## Struct binding with step.Args.Bind
+## Returning RFC 9457 Problem Details from Go handlers
 
-If you've got multiple arguments, you don't need to extract them one by one. Bind the entire `args` map into a struct in one line:
+If a Go callback encounters a business logic error (e.g. payment failure), return an instance of `problem.Problem` to stream a structured error:
 
 ```go
-type ChargeParams struct {
-    Amount   int64  `json:"amount"`
-    Currency string `json:"currency"`
-    TenantID string `json:"tenant_id"`
-}
-
-func handlePayment(ctx context.Context, step *hclapi.Step) (any, error) {
-    var params ChargeParams
-    if err := step.Args.Bind(&params); err != nil {
-        return nil, err
+func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+    if req.Args.GetOr("amount", int64(0)) <= 0 {
+        return nil, problem.New(http.StatusBadRequest, "Charge amount must be positive")
     }
-
-    return map[string]any{"charged": params.Amount, "tenant": params.TenantID}, nil
+    return map[string]any{"success": true}, nil
 }
 ```
 
-## Accessing raw HTTP request data
+## Accessing connection pools directly
 
-You can inspect the untouched standard `*http.Request` via `step.Request`:
-
-```go
-func handleCustomAuth(ctx context.Context, step *hclapi.Step) (any, error) {
-    // Read raw headers
-    authHeader := step.Request.Header.Get("Authorization")
-
-    // Read client remote IP address
-    clientIP := step.Request.RemoteAddr
-
-    // Access route parameters extracted by Go's ServeMux
-    accountID := step.Request.PathValue("id")
-
-    return map[string]any{
-        "authorized": authHeader != "",
-        "ip":         clientIP,
-        "account_id": accountID,
-    }, nil
-}
-```
-
-## Reusing database and cache pools
-
-If your Go handlers need direct database access, you don't need to open secondary connection pools. You can access the exact database and cache clients configured by hclapi:
+Reuse database and cache connection pools configured in HCL manifests without opening duplicate pools:
 
 ```go
 // Direct SQL access via *sql.DB
 db, ok := app.SQL("main")
-if !ok {
-    log.Fatal("database 'main' not configured")
+if ok {
+    var email string
+    _ = db.QueryRowContext(ctx, "SELECT email FROM users WHERE id = $1", 42).Scan(&email)
 }
 
-var email string
-err := db.QueryRowContext(ctx, "SELECT email FROM users WHERE id = $1", 42).Scan(&email)
-
-// Direct Valkey / Redis client access via valkey.Client
+// Direct Valkey / Redis access via valkey.Client
 cache, ok := app.Valkey("cache")
 if ok {
     cmd := cache.B().Get().Key("session:user_42").Build()
@@ -209,12 +179,28 @@ if ok {
 }
 ```
 
+## Programmatic OpenAPI compilation
+
+Generate the compiled OpenAPI 3.1 specification programmatically in tests or build scripts:
+
+```go
+spec, err := hclapi.CompileSpec(manifest)
+if err != nil {
+    log.Fatalf("spec compilation error: %v", err)
+}
+
+fmt.Printf("OpenAPI ETag: %s\n", spec.JSONETag)
+_ = os.WriteFile("openapi.json", spec.JSON, 0o644)
+_ = os.WriteFile("openapi.yaml", spec.YAML, 0o644)
+```
+
 ## Graceful shutdown
 
 Calling `app.Close()` cleanly shuts down all managed connection pools:
 
-- Waits for active database connections to idle before closing pools.
+- Waits for active database connections to finish before closing pools.
 - Closes all active Valkey clients.
+- Closes idle outbound HTTP client connections.
 
 ```go
 defer func() {

@@ -1,0 +1,235 @@
+---
+title: Custom pipeline steps
+description: Extend the HCL language by creating native direct-keyword pipeline steps.
+---
+
+# Custom pipeline steps
+
+While the built-in `go` step lets you call Go functions from manifests, `hclapi` also allows you to extend the manifest language itself by registering new first-class step keywords (e.g., `kafka`, `nats`, `s3`).
+
+Custom steps receive the same privileges as built-in steps:
+
+- **Compile-time validation**: Catch missing fields or bad configs at boot before opening listeners.
+- **Automatic distributed tracing**: An OpenTelemetry child span (`step.<type>:<name>`) is started and ended automatically.
+- **Context publishing**: Step outputs are published directly to `steps.<name>.*` for downstream steps.
+- **Condition guards**: Support `when` attributes out of the box.
+
+## Example: Building a native `kafka` step
+
+In this guide, a custom `kafka` step that produces messages to a Kafka topic will be created in 3 steps:
+
+```hcl
+route "POST /orders" {
+  sql "create_order" {
+    connection = "primary"
+    query      = "INSERT INTO orders (sku, qty) VALUES (@sku, @qty) RETURNING id"
+    args       = {
+      sku = ctx.request.body.sku
+      qty = ctx.request.body.qty
+    }
+  }
+
+  kafka "publish_event" {
+    topic   = "orders.created"
+    message = {
+      order_id   = steps.create_order.row.id
+      sku        = ctx.request.body.sku
+      created_at = now()
+    }
+  }
+
+  respond {
+    status = 201
+    body = {
+      order_id  = steps.create_order.row.id
+      partition = steps.publish_event.result.partition
+      offset    = steps.publish_event.result.offset
+    }
+  }
+}
+```
+
+### 1. Define the AST Node
+
+A step must implement `hclapi.Step` (`StepName()`, `StepWhen()`, `IsTerminal()`). Implement `hclapi.StepValidator` for compile-time checks and `hclapi.StepExecutor` for request execution:
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/ju4n97/hclapi"
+)
+
+type StepKafka struct {
+	Name    string
+	Topic   string
+	Message hclapi.Expr
+	When    hclapi.Expr
+	writer *kafka.Writer
+}
+
+// StepName identifies the step in the request context (steps.<name>).
+func (s *StepKafka) StepName() string {
+	return s.Name
+}
+
+// StepWhen returns the optional conditional expression.
+func (s *StepKafka) StepWhen() hclapi.Expr {
+	return s.When
+}
+
+// IsTerminal returns false because execution continues to subsequent steps.
+func (s *StepKafka) IsTerminal() bool {
+	return false
+}
+
+// ValidateStep enforces configuration constraints at server boot time.
+func (s *StepKafka) ValidateStep(m *hclapi.Manifest) error {
+	if s.Topic == "" {
+		return fmt.Errorf("kafka step %q: missing required 'topic'", s.Name)
+	}
+	if s.Message == nil {
+		return fmt.Errorf("kafka step %q: missing required 'message' expression", s.Name)
+	}
+	return nil
+}
+
+// ExecuteStep runs during the incoming HTTP request.
+func (s *StepKafka) ExecuteStep(ctx context.Context, ec hclapi.StepExecutionContext) (any, error) {
+	// Evaluate the dynamic HCL expression against the request scope
+	payload, err := s.Message.Eval(ec.Scope())
+	if err != nil {
+		return nil, fmt.Errorf("kafka step %q evaluate message: %w", s.Name, err)
+	}
+
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("kafka step %q marshal payload: %w", s.Name, err)
+	}
+
+	// Publish message to Kafka broker
+	msg := kafka.Message{
+		Topic: s.Topic,
+		Value: bytes,
+	}
+
+	if err := s.writer.WriteMessages(ctx, msg); err != nil {
+		return nil, fmt.Errorf("kafka step %q publish: %w", s.Name, err)
+	}
+
+	// Return map; published to context as steps.<name>.result
+	return map[string]any{
+		"topic":     s.Topic,
+		"partition": 0,
+		"offset":    101,
+	}, nil
+}
+```
+
+### 2. Implement the HCL Decoder
+
+The decoder maps an `hcl.Body` AST into your `StepKafka` struct using `gohcl`:
+
+```go
+import (
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/zclconf/go-cty/cty/function"
+)
+
+func newKafkaDecoder(writer *kafka.Writer) hclapi.StepDecoder {
+	return func(label string, body hcl.Body, evalCtx *hcl.EvalContext, funcs map[string]function.Function) (hclapi.Step, error) {
+		type kafkaDecode struct {
+			Topic       string         `hcl:"topic"`
+			MessageExpr hcl.Expression `hcl:"message"`
+			WhenExpr    hcl.Expression `hcl:"when,optional"`
+		}
+
+		var raw kafkaDecode
+		if diags := gohcl.DecodeBody(body, evalCtx, &raw); diags.HasErrors() {
+			return nil, diags
+		}
+
+		return &StepKafka{
+			Name:    label,
+			Topic:   raw.Topic,
+			Message: hclapi.NewExpr(raw.MessageExpr, funcs),
+			When:    hclapi.NewExpr(raw.WhenExpr, funcs),
+			writer:  writer,
+		}, nil
+	}
+}
+```
+
+### 3. Register the Step and Mount the Engine
+
+Register the keyword in `hclapi.StepRegistry` and pass it to `hclapi.NewParser`:
+
+```go
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/segmentio/kafka-go"
+	"github.com/ju4n97/hclapi"
+)
+
+func main() {
+	// Initialize shared Kafka producer pool
+	writer := &kafka.Writer{
+		Addr:     kafka.TCP("localhost:9092"),
+		Balancer: &kafka.LeastBytes{},
+	}
+	defer writer.Close()
+
+	// Create a StepRegistry inheriting all built-in steps (sql, http, respond, etc.)
+	registry := hclapi.DefaultStepRegistry()
+
+	// Register the 'kafka' keyword expecting 1 label: kafka "step_name" { ... }
+	registry.Register("kafka", []string{"name"}, newKafkaDecoder(writer))
+
+	// Compile manifests using the extended parser
+	parser := hclapi.NewParser(registry)
+	manifest, err := parser.Load("./routes/**/*.hcl")
+	if err != nil {
+		log.Fatalf("compile error: %v", err)
+	}
+
+	// Initialize HTTP runtime engine
+	app, err := hclapi.New(manifest)
+	if err != nil {
+		log.Fatalf("engine error: %v", err)
+	}
+	defer app.Close()
+
+	log.Println("Server listening on :8080")
+	http.ListenAndServe(":8080", app)
+}
+```
+
+## Terminal custom steps
+
+If your custom step completes the request (like rendering a custom format or handling WebSockets), have `IsTerminal()` return `true`:
+
+```go
+func (s *StepCustom) IsTerminal() bool {
+    return true
+}
+
+func (s *StepCustom) ExecuteStep(ctx context.Context, ec hclapi.StepExecutionContext) (any, error) {
+    w := ec.ResponseWriter()
+    w.Header().Set("Content-Type", "application/custom")
+    w.Write([]byte("custom output"))
+
+    // Halts pipeline progression immediately
+    return nil, hclapi.ErrPipelineHalted
+}
+```

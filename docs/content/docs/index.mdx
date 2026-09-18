@@ -20,15 +20,15 @@ Manifests are parsed and compiled once at boot time. hclapi executes pipelines d
     items: [
       {
         text: "Installation",
-        link: "/installation",
+        link: "/docs/installation",
       },
       {
         text: "Quickstart",
-        link: "/quickstart",
+        link: "/docs/quickstart",
       },
       {
         text: "Why hclapi",
-        link: "/why",
+        link: "/docs/why",
       },
     ],
   }}
@@ -62,6 +62,7 @@ Manifests are parsed and compiled once at boot time. hclapi executes pipelines d
           { text: "schemas", link: "/docs/manifest/schemas" },
           { text: "routes", link: "/docs/manifest/routes" },
           { text: "Scalar types", link: "/docs/manifest/types" },
+          { text: "telemetry", link: "/docs/manifest/telemetry" },
         ],
       },
       {
@@ -73,12 +74,15 @@ Manifests are parsed and compiled once at boot time. hclapi executes pipelines d
           { text: "valkey", link: "/docs/steps/valkey" },
           { text: "starlark", link: "/docs/steps/starlark" },
           { text: "go", link: "/docs/steps/go" },
+          { text: "stream", link: "/docs/steps/stream" },
           { text: "respond", link: "/docs/steps/respond" },
+          { text: "docs", link: "/docs/steps/docs" },
+          { text: "spec", link: "/docs/steps/spec" },
         ],
       },
       {
         text: "Patterns",
-        link: "/patterns",
+        link: "/docs/patterns",
       },
       {
         text: "Guides",
@@ -92,22 +96,6 @@ Manifests are parsed and compiled once at boot time. hclapi executes pipelines d
   }}
 />
 
-<OverviewGroup
-  group={{
-    name: "Machine-readable documentation",
-    items: [
-      {
-        text: "llms.txt",
-        link: "/llms.txt",
-      },
-      {
-        text: "llms-full.txt",
-        link: "/llms-full.txt",
-      },
-    ],
-  }}
-/>
-
 ## How hclapi works
 
 A route consists of an HTTP method and path pattern, optional request validation, and an ordered pipeline of steps:
@@ -115,15 +103,9 @@ A route consists of an HTTP method and path pattern, optional request validation
 1. An incoming request matches against a `route` block pattern (e.g. `POST /users/{id}`).
 2. Path, query, header, and body data are validated against declared schema constraints, with valid scalar parameters coerced into native Go types (`int64`, `float64`, `bool`).
 3. Pipeline steps (`sql`, `http`, `valkey`, `starlark`, `go`) run sequentially in declared order and write outputs into the request context.
-4. A `respond` step terminates execution, applies schema egress masking, and streams the response.
+4. A terminal step (`respond`, `stream`, `docs`, `spec`) completes the pipeline and streams the response to the client.
 
 See [Request lifecycle](/docs/concepts/lifecycle) for the execution model and [Pipelines and steps](/docs/concepts/pipelines) for pipeline rules.
-
-## What hclapi is for
-
-hclapi is intended for HTTP APIs where the service layer is primarily an interface over data storage and external services. It keeps route definitions, queries, input validation, and transformations together in readable HCL manifests.
-
-hclapi doesn't replace general-purpose application frameworks for complex long-running worker loops, background job queues, or stateful streaming sessions.
 
 ## Source
 

@@ -5,46 +5,44 @@ server {
 
 telemetry {
   service_name = "user-validation-service"
-  logging {
-    level  = "info"
-    redact = ["x-api-key"]
-  }
+  log_level    = "info"
+  redact       = ["x-api-key"]
 }
 
 schema "UserCreate" {
   field "email" {
-    type        = "string"
+    type        = string
     format      = "email"
     required    = true
     description = "Primary user contact address"
   }
   field "username" {
-    type        = "string"
+    type        = string
     required    = true
     min_length  = 3
     max_length  = 20
     description = "Unique alphanumeric handle"
   }
   field "account_type" {
-    type        = "string"
+    type        = string
     required    = true
     enum        = ["individual", "business"]
     description = "Account billing classification"
   }
   field "age" {
-    type        = "integer"
+    type        = integer
     min         = 18
     max         = 120
     description = "Legal age verification"
   }
   field "role" {
-    type        = "string"
+    type        = string
     default     = "member"
     enum        = ["admin", "member", "viewer"]
     description = "Authorization tier"
   }
   field "tags" {
-    type        = "array"
+    type        = list(string)
     description = "User interest classifications"
   }
 }
@@ -67,13 +65,13 @@ route "POST /api/v1/users" {
 
   request {
     header "x-api-key" {
-      type        = "string"
+      type        = string
       format      = "uuid"
       required    = true
       description = "Client authorization key"
     }
     query "source" {
-      type        = "string"
+      type        = string
       default     = "direct"
       enum        = ["direct", "referral", "ad"]
       description = "User registration channel"

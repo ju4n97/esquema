@@ -27,36 +27,34 @@ func newRoutesCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			patterns := resolvePatterns(cmd)
 
-			cfg, err := hclapi.Load(patterns...)
+			m, err := hclapi.Load(patterns...)
 			if err != nil {
 				return err
 			}
 
-			if len(cfg.Endpoints) == 0 {
+			if len(m.Routes) == 0 {
 				fmt.Println("No routes compiled.")
 				return nil
 			}
 
-			fmt.Fprintf(os.Stdout, "\nCompiled Routes (%d total):\n\n", len(cfg.Endpoints))
+			fmt.Fprintf(os.Stdout, "\nCompiled Routes (%d total):\n\n", len(m.Routes))
 
-			for _, ep := range cfg.Endpoints {
-				var stepNames []string
-				for _, s := range ep.Pipeline {
-					name := s.Name
-					if name == "" {
-						name = string(s.Type)
-					} else {
-						name = fmt.Sprintf("%s(%s)", s.Type, name)
+			for _, r := range m.Routes {
+				var stepSummaries []string
+				for _, s := range r.Steps {
+					name := s.StepName()
+					if s.IsTerminal() {
+						name = fmt.Sprintf("[%s]", name)
 					}
-					stepNames = append(stepNames, name)
+					stepSummaries = append(stepSummaries, name)
 				}
 
-				chain := strings.Join(stepNames, " → ")
+				chain := strings.Join(stepSummaries, " → ")
 				if chain == "" {
 					chain = "(empty pipeline)"
 				}
 
-				fmt.Fprintf(os.Stdout, "  %-7s %-35s  %s\n", ep.Method, ep.Path, chain)
+				fmt.Fprintf(os.Stdout, "  %-7s %-35s  %s\n", r.Method, r.Path, chain)
 			}
 			fmt.Println()
 			return nil

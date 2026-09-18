@@ -29,7 +29,7 @@ serve [GLOBAL OPTIONS] [command [COMMAND OPTIONS]] [ARGUMENTS...]
 
 # GLOBAL OPTIONS
 
-**--config, -c, --manifests, -m**="": Manifest file, directory, or glob pattern (can be specified multiple times)
+**--config, -c, --manifests, -m**="": Manifest file, directory, or glob pattern (repeatable)
 
 **--host, -H**="": Host address to bind the listener (overrides manifest)
 

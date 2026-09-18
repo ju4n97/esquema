@@ -66,21 +66,6 @@ route "GET /docs/redoc" {
   }
 }
 
-route "GET /docs/custom" {
-  docs {
-    template = <<-HTML
-      <!doctype html>
-      <html>
-        <head><title>{{ .Title }}</title></head>
-        <body>
-          <h1>Custom Portal: {{ .Title }}</h1>
-          <p>Specification: <a href="{{ .SpecURL }}">{{ .SpecURL }}</a></p>
-        </body>
-      </html>
-    HTML
-  }
-}
-
 route "GET /api/v1/ping" {
   summary = "Simple latency check"
   tag     = "system"

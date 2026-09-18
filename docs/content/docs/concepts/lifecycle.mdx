@@ -1,11 +1,11 @@
 ---
 title: Request lifecycle
-description: Two phase execution from boot compilation to runtime request dispatch.
+description: Two-phase execution from boot compilation to runtime request dispatch.
 ---
 
 # Request lifecycle
 
-hclapi operates in two distinct phases. Manifests are verified once when the server boots, and incoming requests run through a fast, sequential execution pipeline.
+hclapi operates in two distinct phases: compile-time validation at boot, and fast sequential pipeline execution per request.
 
 | Phase       | Trigger              | Actions                                                                                             | On failure                                              |
 | :---------- | :------------------- | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------------ |
@@ -14,29 +14,26 @@ hclapi operates in two distinct phases. Manifests are verified once when the ser
 
 ## Execution stages
 
-Incoming HTTP Request
+1. **Telemetry & trace extraction**
+   - Extracts incoming W3C `traceparent` headers.
+   - Starts a root server span and mounts the panic recovery boundary.
 
-1. Telemetry and panic guard
-   - Starts root trace timer and extracts W3C traceparent headers
-   - Captures unexpected panics and converts them to RFC 9457 500 responses
+2. **Payload boundary enforcement**
+   - Reads request body via an `io.LimitReader` bounded by `server.max_body_size`.
+   - Rejects oversized payloads with HTTP 413.
 
-2. Payload size enforcement
-   - Reads the body through an io.LimitReader bounded by server.max_body_size
-   - Halts immediately with HTTP 413 if the payload is too large
+3. **Ingress validation & coercion**
+   - Validates path, query, header, and body data against declared constraints.
+   - Rejects violations with RFC 9457 HTTP 422 (or HTTP 400 for malformed JSON).
+   - Coerces valid scalar parameters into native `int64`, `float64`, and `bool` types.
 
-3. Ingress validation and type coercion
-   - Validates path, query, header, and body data against schema constraints
-   - Rejects invalid payloads with HTTP 422 or malformed JSON with HTTP 400
-   - Coerces valid scalar path and query parameters into native int64, float64, and bool types
+4. **Context initialization**
+   - Builds the request-scoped `ctx` object with a frozen reference timestamp.
 
-4. Context initialization
-   - Builds the request-scoped ctx object holding input coordinates and timestamps
+5. **Sequential step execution**
+   - Runs declared steps (`sql`, `http`, `valkey`, `starlark`, `go`) one by one.
+   - Emits individual OpenTelemetry child spans for each step and saves results into context.
 
-5. Sequential step execution
-   - Runs declared steps (sql, http, valkey, starlark, go) one by one
-   - Emits individual OpenTelemetry step spans and records step outputs into context
-
-6. Respond and egress masking
-   - Evaluates conditional when expressions to select matching response
-   - Applies schema masks to prune undeclared fields
-   - Streams JSON or raw non-JSON payloads based on Content-Type
+6. **Terminal streaming or response**
+   - Reaches a terminal step (`respond`, `stream`, `docs`, `spec`).
+   - Applies

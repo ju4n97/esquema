@@ -12,21 +12,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ju4n97/hclapi/internal/config"
+	"github.com/ju4n97/hclapi/internal/manifest"
 	"github.com/ju4n97/hclapi/internal/problem"
 )
 
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
-// validateIngress recursively validates path, query, header, and body inputs against OpenAPI schemas.
-func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *problem.Problem {
-	if !ep.Request.HasRules() {
+// ValidateIngress validates path, query, header, and body parameters against configured request rules.
+// Valid scalar path and query parameters are coerced to native Go types (int64, float64, bool) in place.
+func ValidateIngress(ctx *Context, rules *manifest.Request, schemas map[string]manifest.Schema) *problem.Problem {
+	if rules == nil || !rules.HasRules() {
 		return nil
 	}
 
 	var invalidParams []problem.InvalidParam
 
-	for name, field := range ep.Request.Path {
+	for name, field := range rules.Path {
 		raw, exists := ctx.pathParams[name]
 		val, _ := raw.(string)
 		if !exists || val == "" {
@@ -36,6 +37,7 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 			})
 			continue
 		}
+
 		if reason := validateScalarString(val, field); reason != "" {
 			invalidParams = append(invalidParams, problem.InvalidParam{
 				Name:   "path." + name,
@@ -43,17 +45,17 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 			})
 			continue
 		}
-		if coerced, ok := coerceScalar(val, field.Type); ok {
-			ctx.pathParams[name] = coerced
+
+		if coerced, ok := coerceScalarString(val, field.Type.Type); ok {
+			ctx.SetPathParam(name, coerced)
 		}
 	}
 
-	for name, field := range ep.Request.Query {
+	for name, field := range rules.Query {
 		raw, exists := ctx.queryParams[name]
-		val, _ := raw.(string)
-		if !exists || val == "" {
+		if !exists || raw == nil {
 			if field.Default != nil {
-				ctx.queryParams[name] = field.Default
+				ctx.SetQueryParam(name, field.Default)
 				continue
 			}
 			if field.Required {
@@ -64,6 +66,59 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 			}
 			continue
 		}
+
+		if field.Type.IsArray() {
+			var rawSlice []string
+			switch v := raw.(type) {
+			case string:
+				rawSlice = []string{v}
+			case []string:
+				rawSlice = v
+			}
+
+			if field.MinLength != nil && len(rawSlice) < *field.MinLength {
+				invalidParams = append(invalidParams, problem.InvalidParam{
+					Name:   "query." + name,
+					Reason: fmt.Sprintf("array must contain at least %d items", *field.MinLength),
+				})
+				continue
+			}
+
+			coercedSlice := make([]any, len(rawSlice))
+			elemType := manifest.TypeString
+			if field.Type.ElemType != nil {
+				elemType = field.Type.ElemType.Type
+			}
+
+			elemField := manifest.Field{
+				Type:   manifest.TypeSpec{Type: elemType},
+				Format: field.Format,
+			}
+
+			hasError := false
+			for i, item := range rawSlice {
+				if reason := validateScalarString(item, elemField); reason != "" {
+					invalidParams = append(invalidParams, problem.InvalidParam{
+						Name:   fmt.Sprintf("query.%s[%d]", name, i),
+						Reason: reason,
+					})
+					hasError = true
+					break
+				}
+				if coerced, ok := coerceScalarString(item, elemType); ok {
+					coercedSlice[i] = coerced
+				} else {
+					coercedSlice[i] = item
+				}
+			}
+
+			if !hasError {
+				ctx.SetQueryParam(name, coercedSlice)
+			}
+			continue
+		}
+
+		val, _ := raw.(string)
 		if reason := validateScalarString(val, field); reason != "" {
 			invalidParams = append(invalidParams, problem.InvalidParam{
 				Name:   "query." + name,
@@ -71,12 +126,13 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 			})
 			continue
 		}
-		if coerced, ok := coerceScalar(val, field.Type); ok {
-			ctx.queryParams[name] = coerced
+
+		if coerced, ok := coerceScalarString(val, field.Type.Type); ok {
+			ctx.SetQueryParam(name, coerced)
 		}
 	}
 
-	for name, field := range ep.Request.Headers {
+	for name, field := range rules.Headers {
 		lookup := strings.ToLower(name)
 		val, exists := ctx.headers[lookup]
 		if !exists || val == "" {
@@ -88,6 +144,7 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 			}
 			continue
 		}
+
 		if reason := validateScalarString(val, field); reason != "" {
 			invalidParams = append(invalidParams, problem.InvalidParam{
 				Name:   "header." + name,
@@ -96,18 +153,26 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 		}
 	}
 
-	if len(ep.Request.Body) > 0 {
-		if ctx.bodyMalformed {
+	hasBodyRules := len(rules.Body) > 0 || rules.BodyRef != ""
+	if hasBodyRules {
+		if ctx.BodyMalformed() {
 			p := problem.New(http.StatusBadRequest, "Malformed JSON request body")
 			return &p
 		}
 
-		bodyMap, ok := ctx.bodyData.(map[string]any)
+		bodyMap, ok := ctx.Body().(map[string]any)
 		if !ok {
 			bodyMap = make(map[string]any)
 		}
 
-		for name, field := range ep.Request.Body {
+		fields := rules.Body
+		if rules.BodyRef != "" {
+			if schema, exists := schemas[rules.BodyRef]; exists {
+				fields = schema.Fields
+			}
+		}
+
+		for name, field := range fields {
 			val, exists := bodyMap[name]
 			path := "body." + name
 
@@ -125,9 +190,10 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 				continue
 			}
 
-			e.validateDeepField(path, val, field, &invalidParams)
+			validateDeepField(path, val, field, schemas, &invalidParams)
 		}
-		ctx.bodyData = bodyMap
+
+		ctx.SetBody(bodyMap)
 	}
 
 	if len(invalidParams) > 0 {
@@ -139,11 +205,16 @@ func (e *Engine) validateIngress(ctx *Context, ep config.CompiledEndpoint) *prob
 	return nil
 }
 
-// validateDeepField recursively evaluates fields, nested schemas, and array elements.
-func (e *Engine) validateDeepField(path string, val any, field config.Field, invalidParams *[]problem.InvalidParam) {
-	// Direct nested schema reference
-	if field.SchemaRef != "" && field.Type == config.DataTypeObject {
-		nestedSchema, exists := e.cfg.Schemas[field.SchemaRef]
+// validateDeepField recursively validates nested objects, custom schemas, and array items.
+func validateDeepField(
+	path string,
+	val any,
+	field manifest.Field,
+	schemas map[string]manifest.Schema,
+	invalidParams *[]problem.InvalidParam,
+) {
+	if field.Type.SchemaRef != "" && field.Type.IsObject() {
+		nestedSchema, exists := schemas[field.Type.SchemaRef]
 		if !exists {
 			return
 		}
@@ -175,13 +246,12 @@ func (e *Engine) validateDeepField(path string, val any, field config.Field, inv
 				continue
 			}
 
-			e.validateDeepField(subPath, subVal, f, invalidParams)
+			validateDeepField(subPath, subVal, f, schemas, invalidParams)
 		}
 		return
 	}
 
-	// Array of custom schemas or primitives
-	if field.Type == config.DataTypeArray {
+	if field.Type.IsArray() {
 		list, ok := val.([]any)
 		if !ok {
 			*invalidParams = append(*invalidParams, problem.InvalidParam{
@@ -204,11 +274,12 @@ func (e *Engine) validateDeepField(path string, val any, field config.Field, inv
 			})
 		}
 
+		elemRef := field.Type.ElementSchemaRef()
 		for i, item := range list {
 			itemPath := fmt.Sprintf("%s[%d]", path, i)
 
-			if field.SchemaRef != "" {
-				nestedSchema, exists := e.cfg.Schemas[field.SchemaRef]
+			if elemRef != "" {
+				nestedSchema, exists := schemas[elemRef]
 				if !exists {
 					continue
 				}
@@ -240,10 +311,13 @@ func (e *Engine) validateDeepField(path string, val any, field config.Field, inv
 						continue
 					}
 
-					e.validateDeepField(subPath, subVal, f, invalidParams)
+					validateDeepField(subPath, subVal, f, schemas, invalidParams)
 				}
-			} else if field.ItemsType != "" {
-				elemField := config.Field{Type: field.ItemsType, Format: field.Format}
+			} else if field.Type.ElemType != nil {
+				elemField := manifest.Field{
+					Type:   *field.Type.ElemType,
+					Format: field.Format,
+				}
 				if reason := validateTypedValue(item, elemField); reason != "" {
 					*invalidParams = append(*invalidParams, problem.InvalidParam{
 						Name:   itemPath,
@@ -255,7 +329,6 @@ func (e *Engine) validateDeepField(path string, val any, field config.Field, inv
 		return
 	}
 
-	// Scalar primitives (string, integer, number, boolean)
 	if reason := validateTypedValue(val, field); reason != "" {
 		*invalidParams = append(*invalidParams, problem.InvalidParam{
 			Name:   path,
@@ -264,16 +337,16 @@ func (e *Engine) validateDeepField(path string, val any, field config.Field, inv
 	}
 }
 
-// coerceScalar converts validated scalar strings into typed Go primitives.
-func coerceScalar(val string, dt config.DataType) (any, bool) {
+// coerceScalarString converts textual path and query parameters into native int64, float64, or bool primitives.
+func coerceScalarString(val string, dt manifest.DataType) (any, bool) {
 	switch dt {
-	case config.DataTypeInteger:
+	case manifest.TypeInteger:
 		i, err := strconv.ParseInt(val, 10, 64)
 		return i, err == nil
-	case config.DataTypeNumber:
+	case manifest.TypeNumber:
 		f, err := strconv.ParseFloat(val, 64)
 		return f, err == nil
-	case config.DataTypeBoolean:
+	case manifest.TypeBoolean:
 		b, err := strconv.ParseBool(val)
 		return b, err == nil
 	default:
@@ -281,17 +354,17 @@ func coerceScalar(val string, dt config.DataType) (any, bool) {
 	}
 }
 
-// validateTypedValue validates dynamic JSON-decoded data structures against schema rules.
-func validateTypedValue(val any, field config.Field) string {
-	switch field.Type {
-	case config.DataTypeString:
+// validateTypedValue verifies parsed JSON data against bounds, types, and constraints.
+func validateTypedValue(val any, field manifest.Field) string {
+	switch field.Type.Type {
+	case manifest.TypeString:
 		str, ok := val.(string)
 		if !ok {
 			return "must be a string"
 		}
 		return checkStringConstraints(str, field)
 
-	case config.DataTypeInteger:
+	case manifest.TypeInteger:
 		var intVal int64
 		switch n := val.(type) {
 		case float64:
@@ -306,6 +379,7 @@ func validateTypedValue(val any, field config.Field) string {
 		default:
 			return "must be an integer"
 		}
+
 		if field.Min != nil && float64(intVal) < *field.Min {
 			return fmt.Sprintf("must be greater than or equal to %v", *field.Min)
 		}
@@ -313,7 +387,7 @@ func validateTypedValue(val any, field config.Field) string {
 			return fmt.Sprintf("must be less than or equal to %v", *field.Max)
 		}
 
-	case config.DataTypeNumber:
+	case manifest.TypeNumber:
 		var num float64
 		switch n := val.(type) {
 		case float64:
@@ -325,6 +399,7 @@ func validateTypedValue(val any, field config.Field) string {
 		default:
 			return "must be a number"
 		}
+
 		if field.Min != nil && num < *field.Min {
 			return fmt.Sprintf("must be greater than or equal to %v", *field.Min)
 		}
@@ -332,12 +407,12 @@ func validateTypedValue(val any, field config.Field) string {
 			return fmt.Sprintf("must be less than or equal to %v", *field.Max)
 		}
 
-	case config.DataTypeBoolean:
+	case manifest.TypeBoolean:
 		if _, ok := val.(bool); !ok {
 			return "must be a boolean"
 		}
 
-	case config.DataTypeArray:
+	case manifest.TypeArray:
 		list, ok := val.([]any)
 		if !ok {
 			return "must be an array"
@@ -349,7 +424,7 @@ func validateTypedValue(val any, field config.Field) string {
 			return fmt.Sprintf("array must contain at most %d items", *field.MaxLength)
 		}
 
-	case config.DataTypeObject:
+	case manifest.TypeObject:
 		if _, ok := val.(map[string]any); !ok {
 			return "must be an object"
 		}
@@ -358,10 +433,10 @@ func validateTypedValue(val any, field config.Field) string {
 	return ""
 }
 
-// validateScalarString validates string inputs from path, query, and headers.
-func validateScalarString(val string, field config.Field) string {
-	switch field.Type {
-	case config.DataTypeInteger:
+// validateScalarString validates raw string parameters against scalar rules.
+func validateScalarString(val string, field manifest.Field) string {
+	switch field.Type.Type {
+	case manifest.TypeInteger:
 		i, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			return "must be an integer"
@@ -373,7 +448,7 @@ func validateScalarString(val string, field config.Field) string {
 			return fmt.Sprintf("must be less than or equal to %v", *field.Max)
 		}
 
-	case config.DataTypeNumber:
+	case manifest.TypeNumber:
 		f, err := strconv.ParseFloat(val, 64)
 		if err != nil {
 			return "must be a number"
@@ -385,20 +460,20 @@ func validateScalarString(val string, field config.Field) string {
 			return fmt.Sprintf("must be less than or equal to %v", *field.Max)
 		}
 
-	case config.DataTypeBoolean:
+	case manifest.TypeBoolean:
 		if val != "true" && val != "false" {
 			return "must be a boolean"
 		}
 
-	case config.DataTypeString:
+	case manifest.TypeString:
 		return checkStringConstraints(val, field)
 	}
 
 	return ""
 }
 
-// checkStringConstraints verifies length, format, and enum rules for strings.
-func checkStringConstraints(val string, field config.Field) string {
+// checkStringConstraints checks length bounds, regex formats, and enum matches.
+func checkStringConstraints(val string, field manifest.Field) string {
 	if field.MinLength != nil && len(val) < *field.MinLength {
 		return fmt.Sprintf("length must be at least %d characters", *field.MinLength)
 	}
@@ -407,31 +482,30 @@ func checkStringConstraints(val string, field config.Field) string {
 	}
 
 	switch field.Format {
-	case config.FormatEmail:
+	case manifest.FormatEmail:
 		if _, err := mail.ParseAddress(val); err != nil || !strings.Contains(val, "@") {
 			return "must be a valid email address"
 		}
-	case config.FormatUUID:
+	case manifest.FormatUUID:
 		if !uuidRegex.MatchString(val) {
 			return "must be a valid UUID"
 		}
-	case config.FormatURI:
+	case manifest.FormatURI:
 		if u, err := url.ParseRequestURI(val); err != nil || u.Scheme == "" {
 			return "must be a valid URI"
 		}
-	case config.FormatDateTime:
+	case manifest.FormatDateTime:
 		if _, err := time.Parse(time.RFC3339, val); err != nil {
 			return "must be an RFC 3339 date-time string"
 		}
-	case config.FormatDate:
+	case manifest.FormatDate:
 		if _, err := time.Parse("2006-01-02", val); err != nil {
 			return "must be a YYYY-MM-DD date string"
 		}
 	}
 
 	if len(field.Enum) > 0 {
-		matched := slices.Contains(field.Enum, val)
-		if !matched {
+		if !slices.Contains(field.Enum, val) {
 			return fmt.Sprintf("must be one of: [%s]", strings.Join(field.Enum, ", "))
 		}
 	}

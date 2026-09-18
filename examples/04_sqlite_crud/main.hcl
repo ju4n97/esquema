@@ -19,27 +19,27 @@ connection "sql" "main" {
 
 schema "Todo" {
   field "id" {
-    type     = "integer"
+    type     = integer
     required = true
   }
   field "title" {
-    type       = "string"
+    type       = string
     required   = true
     min_length = 1
   }
   field "completed" {
-    type    = "boolean"
+    type    = boolean
     default = false
   }
   field "created_at" {
-    type   = "string"
+    type   = string
     format = "date-time"
   }
 }
 
 schema "TodoCreate" {
   field "title" {
-    type       = "string"
+    type       = string
     required   = true
     min_length = 1
   }
@@ -47,11 +47,11 @@ schema "TodoCreate" {
 
 schema "TodoUpdate" {
   field "title" {
-    type       = "string"
+    type       = string
     min_length = 1
   }
   field "completed" {
-    type = "boolean"
+    type = boolean
   }
 }
 
@@ -71,14 +71,14 @@ route "GET /api/v1/todos" {
   summary = "List all stored todos"
   tag     = "todos"
 
-  step "sql" "list" {
+  sql "list" {
     connection = "main"
     query      = "SELECT id, title, completed, created_at FROM todos ORDER BY id DESC"
   }
 
   respond {
     status = 200
-    schema = "[]Todo"
+    schema = list(Todo)
     body   = steps.list.rows
   }
 }
@@ -91,7 +91,7 @@ route "POST /api/v1/todos" {
     body = TodoCreate
   }
 
-  step "starlark" "sanitize" {
+  starlark "sanitize" {
     source = <<-STARLARK
       def execute(ctx):
           body = ctx["request"]["body"] or {}
@@ -101,7 +101,7 @@ route "POST /api/v1/todos" {
     STARLARK
   }
 
-  step "sql" "insert" {
+  sql "insert" {
     connection = "main"
     query      = <<-SQL
       INSERT INTO todos (title)
@@ -111,7 +111,8 @@ route "POST /api/v1/todos" {
     args = {
       title = steps.sanitize.result.title
     }
-    catch "19" {
+    catch {
+      code   = "19"
       status = 409
       body   = problem(409, "A todo item with this title already exists")
     }
@@ -119,7 +120,7 @@ route "POST /api/v1/todos" {
 
   respond {
     status = 201
-    schema = "Todo"
+    schema = Todo
     body   = steps.insert.row
   }
 }
@@ -130,12 +131,12 @@ route "GET /api/v1/todos/{id}" {
 
   request {
     path "id" {
-      type     = "integer"
+      type     = integer
       required = true
     }
   }
 
-  step "sql" "fetch" {
+  sql "fetch" {
     connection = "main"
     query      = "SELECT id, title, completed, created_at FROM todos WHERE id = @id"
     args = {
@@ -151,7 +152,7 @@ route "GET /api/v1/todos/{id}" {
 
   respond {
     status = 200
-    schema = "Todo"
+    schema = Todo
     body   = steps.fetch.row
   }
 }
@@ -162,13 +163,13 @@ route "PUT /api/v1/todos/{id}" {
 
   request {
     path "id" {
-      type     = "integer"
+      type     = integer
       required = true
     }
     body = TodoUpdate
   }
 
-  step "sql" "update" {
+  sql "update" {
     connection = "main"
     query      = <<-SQL
       UPDATE todos
@@ -193,7 +194,7 @@ route "PUT /api/v1/todos/{id}" {
 
   respond {
     status = 200
-    schema = "Todo"
+    schema = Todo
     body   = steps.update.row
   }
 }
@@ -204,12 +205,12 @@ route "DELETE /api/v1/todos/{id}" {
 
   request {
     path "id" {
-      type     = "integer"
+      type     = integer
       required = true
     }
   }
 
-  step "sql" "delete" {
+  sql "delete" {
     connection = "main"
     query      = "DELETE FROM todos WHERE id = @id"
     args = {

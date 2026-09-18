@@ -21,7 +21,7 @@ Dynamic values in `args`, `when`, `headers`, and `body` evaluate at request time
 
 ### `now()`
 
-Returns the current UTC timestamp formatted as an RFC 3339 string:
+Returns the frozen UTC reference timestamp for the active request formatted as an RFC 3339 string:
 
 ```hcl
 respond {
@@ -37,7 +37,7 @@ respond {
 Generates a cryptographically secure RFC 4122 UUID v4 string:
 
 ```hcl
-step "sql" "create_item" {
+sql "create_item" {
   connection = "main"
   query      = "INSERT INTO items (id, name) VALUES (@id, @name)"
   args = {
@@ -59,16 +59,39 @@ respond {
 }
 ```
 
-### `upper(str)` and `lower(str)`
+### `env(key, [default])`
 
-Transforms string casing:
+Reads an environment variable with an optional fallback:
 
 ```hcl
-step "sql" "lookup" {
+connection "sql" "main" {
+  engine = "postgres"
+  source = env("DATABASE_URL", "postgres://localhost/dev")
+}
+```
+
+### `trim(str)`, `upper(str)`, and `lower(str)`
+
+String casing and whitespace normalization:
+
+```hcl
+sql "lookup" {
   connection = "main"
   query      = "SELECT * FROM accounts WHERE code = @code"
   args = {
-    code = upper(ctx.request.query.code)
+    code = upper(trim(ctx.request.query.code))
   }
+}
+```
+
+### `list(T)`
+
+Constructs collection type specifications for schema references and response filtering:
+
+```hcl
+respond {
+  status = 200
+  schema = list(User)
+  body   = steps.fetch_users.rows
 }
 ```

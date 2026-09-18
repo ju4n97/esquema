@@ -1,924 +1,642 @@
 package manifest
 
 import (
+	"errors"
 	"fmt"
-	"maps"
+	"net/http"
 	"os"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
-
-	"github.com/ju4n97/hclapi/internal/config"
-	"github.com/ju4n97/hclapi/internal/ctyconv"
-	"github.com/ju4n97/hclapi/internal/scalar"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
-// Load discovers, parses, validates, and compiles HCL manifests into a verified Config.
-func Load(patterns ...string) (*config.Config, error) {
+// Parser coordinates file discovery, HCL parsing, and AST compilation using a configurable [StepRegistry].
+type Parser struct {
+	registry *StepRegistry
+}
+
+// NewParser constructs a Parser configured with the supplied [StepRegistry].
+// If registry is nil, [DefaultStepRegistry] is used.
+func NewParser(registry *StepRegistry) *Parser {
+	if registry == nil {
+		registry = DefaultStepRegistry()
+	}
+	return &Parser{registry: registry}
+}
+
+// Load discovers, reads, merges, and compiles HCL files into a validated Manifest using default steps.
+func Load(patterns ...string) (*Manifest, error) {
+	return NewParser(nil).Load(patterns...)
+}
+
+// Parse compiles an in-memory HCL manifest string into a validated Manifest using default steps.
+func Parse(source string) (*Manifest, error) {
+	return NewParser(nil).Parse(source)
+}
+
+// Load discovers and compiles files matching the supplied patterns.
+func (p *Parser) Load(patterns ...string) (*Manifest, error) {
 	files, err := DiscoverFiles(patterns...)
 	if err != nil {
-		return nil, fmt.Errorf("discover files: %w", err)
+		return nil, fmt.Errorf("discover manifest files: %w", err)
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no manifest files matched patterns: %v", patterns)
+		return nil, fmt.Errorf("no manifest files found matching patterns: %v", patterns)
 	}
 
-	parser := hclparse.NewParser()
-	var hclFiles []*hcl.File
+	hclParser := hclparse.NewParser()
+	var bodies []hcl.Body
 
 	for _, file := range files {
-		f, diags := parser.ParseHCLFile(file)
+		hclFile, diags := hclParser.ParseHCLFile(file)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("parse error in %s:\n%s", file, diags.Error())
+			return nil, fmt.Errorf("parse %s:\n%s", file, diags.Error())
 		}
-		hclFiles = append(hclFiles, f)
+		bodies = append(bodies, hclFile.Body)
 	}
 
-	return compile(hclFiles)
+	return p.compileBodies(bodies)
 }
 
-// Parse compiles an in-memory HCL manifest string into a verified Config.
-func Parse(source string) (*config.Config, error) {
-	parser := hclparse.NewParser()
-	f, diags := parser.ParseHCL([]byte(source), "manifest.hcl")
+// Parse compiles an in-memory HCL manifest string.
+func (p *Parser) Parse(source string) (*Manifest, error) {
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "" {
+		return nil, errors.New("manifest source cannot be empty")
+	}
+
+	hclParser := hclparse.NewParser()
+	hclFile, diags := hclParser.ParseHCL([]byte(trimmed), "manifest.hcl")
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("parse error:\n%s", diags.Error())
+		return nil, fmt.Errorf("parse manifest:\n%s", diags.Error())
 	}
-	return compile([]*hcl.File{f})
+
+	return p.compileBodies([]hcl.Body{hclFile.Body})
 }
 
-// compile processes parsed HCL files through structural validation and assembly passes.
-func compile(files []*hcl.File) (*config.Config, error) {
-	cfg := &config.Config{
-		Server: config.Server{
-			Host:         "127.0.0.1",
-			Port:         8080,
-			ReadTimeout:  scalar.Duration(15 * time.Second),
-			WriteTimeout: scalar.Duration(15 * time.Second),
-			MaxBodySize:  10 * scalar.MB,
-		},
-		OpenAPI: config.OpenAPIMetadata{
-			Title:   "API Documentation",
-			Version: "1.0.0",
-		},
-		Connections: make(map[string]config.Connection),
-		Schemas:     make(map[string]config.Schema),
-	}
+// compileBodies merges HCL bodies, decodes root blocks using gohcl, and resolves route pipelines.
+func (p *Parser) compileBodies(bodies []hcl.Body) (*Manifest, error) {
+	merged := hcl.MergeBodies(bodies)
 
-	envMap := make(map[string]string)
-	for _, e := range os.Environ() {
-		if k, v, ok := strings.Cut(e, "="); ok {
-			envMap[k] = v
-		}
-	}
-	evalCtx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"env": ctyconv.ToCty(envMap),
-		},
-		Functions: ctyconv.BuiltinFunctions(),
-	}
-
-	// Parse top-level infrastructure declarations
-	for _, file := range files {
-		content, _, diags := file.Body.PartialContent(rootSchema)
-		if diags.HasErrors() {
-			return nil, diags
-		}
-
-		for _, block := range content.Blocks {
-			switch block.Type {
-			case "server":
-				var raw struct {
-					Host         string `hcl:"host,optional"`
-					Port         int    `hcl:"port,optional"`
-					ReadTimeout  string `hcl:"read_timeout,optional"`
-					WriteTimeout string `hcl:"write_timeout,optional"`
-					MaxBodySize  string `hcl:"max_body_size,optional"`
-				}
-				if diags := gohcl.DecodeBody(block.Body, evalCtx, &raw); diags.HasErrors() {
-					return nil, diags
-				}
-				if raw.Host != "" {
-					cfg.Server.Host = raw.Host
-				}
-				if raw.Port != 0 {
-					cfg.Server.Port = raw.Port
-				}
-				if raw.ReadTimeout != "" {
-					d, err := scalar.ParseDuration(raw.ReadTimeout)
-					if err != nil {
-						return nil, fmt.Errorf("server.read_timeout: %w", err)
-					}
-					cfg.Server.ReadTimeout = d
-				}
-				if raw.WriteTimeout != "" {
-					d, err := scalar.ParseDuration(raw.WriteTimeout)
-					if err != nil {
-						return nil, fmt.Errorf("server.write_timeout: %w", err)
-					}
-					cfg.Server.WriteTimeout = d
-				}
-				if raw.MaxBodySize != "" {
-					b, err := scalar.ParseByteSize(raw.MaxBodySize)
-					if err != nil {
-						return nil, fmt.Errorf("server.max_body_size: %w", err)
-					}
-					cfg.Server.MaxBodySize = b
-				}
-
-			case "openapi":
-				if err := decodeOpenAPIMetadata(block.Body, evalCtx, &cfg.OpenAPI); err != nil {
-					return nil, err
-				}
-
-			case "telemetry":
-				if diags := gohcl.DecodeBody(block.Body, evalCtx, &cfg.Telemetry); diags.HasErrors() {
-					return nil, diags
-				}
-
-			case "connection":
-				connType, err := config.ParseConnectionType(block.Labels[0])
-				if err != nil {
-					return nil, err
-				}
-				connName := block.Labels[1]
-				conn, err := decodeConnection(connType, connName, block.Body, evalCtx)
-				if err != nil {
-					return nil, err
-				}
-				cfg.Connections[connName] = conn
-
-			case "schema":
-				schemaName := block.Labels[0]
-				schema, err := decodeSchema(schemaName, block.Body, evalCtx)
-				if err != nil {
-					return nil, err
-				}
-				cfg.Schemas[schemaName] = schema
-			}
-		}
-	}
-
-	// Parse route blocks and sequential pipeline steps
-	for _, file := range files {
-		content, _, diags := file.Body.PartialContent(rootSchema)
-		if diags.HasErrors() {
-			return nil, diags
-		}
-
-		for _, block := range content.Blocks {
-			if block.Type != "route" {
-				continue
-			}
-
-			endpointLabel := block.Labels[0]
-			method, path, ok := strings.Cut(strings.TrimSpace(endpointLabel), " ")
-			if !ok {
-				return nil, fmt.Errorf("invalid route label %q: expected 'METHOD /path' (e.g. 'GET /users')", endpointLabel)
-			}
-			method = strings.ToUpper(strings.TrimSpace(method))
-			path = strings.TrimSpace(path)
-
-			ep, err := decodeRoute(method, path, block.Body, evalCtx, cfg.Schemas)
-			if err != nil {
-				return nil, fmt.Errorf("route %s %s: %w", method, path, err)
-			}
-			cfg.Endpoints = append(cfg.Endpoints, ep)
-		}
-	}
-
-	if err := validateIntegrity(cfg); err != nil {
+	schemaNames, err := collectSchemaNames(merged)
+	if err != nil {
 		return nil, err
 	}
 
-	return cfg, nil
+	evalCtx := buildStaticEvalContext(schemaNames)
+	exprFuncs := runtimeExprFunctions()
+
+	var root rootDecode
+	if diags := gohcl.DecodeBody(merged, evalCtx, &root); diags.HasErrors() {
+		return nil, fmt.Errorf("decode manifest root:\n%s", diags.Error())
+	}
+
+	m := &Manifest{
+		Server: Server{
+			Host:         "127.0.0.1",
+			Port:         8080,
+			ReadTimeout:  Duration(15 * time.Second),
+			WriteTimeout: Duration(15 * time.Second),
+			MaxBodySize:  ByteSize(10 * 1024 * 1024),
+		},
+		OpenAPI: OpenAPI{
+			Title:   "API Documentation",
+			Version: "1.0.0",
+		},
+		Connections: make(map[string]Connection),
+		Schemas:     make(map[string]Schema),
+	}
+
+	if root.Server != nil {
+		if err := resolveServerConfig(root.Server, &m.Server); err != nil {
+			return nil, err
+		}
+	}
+
+	if root.OpenAPI != nil {
+		m.OpenAPI = *root.OpenAPI
+		if m.OpenAPI.Title == "" {
+			m.OpenAPI.Title = "API Documentation"
+		}
+		if m.OpenAPI.Version == "" {
+			m.OpenAPI.Version = "1.0.0"
+		}
+	}
+
+	if root.Telemetry != nil {
+		m.Telemetry = *root.Telemetry
+	}
+
+	for _, conn := range root.Connections {
+		resolved, err := resolveConnectionConfig(conn)
+		if err != nil {
+			return nil, err
+		}
+		m.Connections[resolved.Name] = resolved
+	}
+
+	for _, s := range root.Schemas {
+		resolved, err := resolveSchema(s, evalCtx)
+		if err != nil {
+			return nil, err
+		}
+		m.Schemas[resolved.Name] = resolved
+	}
+
+	for _, rb := range root.Routes {
+		route, err := p.resolveRoute(rb, evalCtx, exprFuncs)
+		if err != nil {
+			return nil, err
+		}
+		m.Routes = append(m.Routes, route)
+	}
+
+	if err := m.Validate(); err != nil {
+		return nil, fmt.Errorf("manifest integrity check: %w", err)
+	}
+
+	return m, nil
 }
 
-// decodeConnection builds a typed Connection struct directly using labels and body attributes.
-func decodeConnection(connType config.ConnectionType, name string, body hcl.Body, ctx *hcl.EvalContext) (config.Connection, error) {
-	conn := config.Connection{Type: connType, Name: name}
+type rootDecode struct {
+	Server      *serverDecode      `hcl:"server,block"`
+	OpenAPI     *OpenAPI           `hcl:"openapi,block"`
+	Telemetry   *Telemetry         `hcl:"telemetry,block"`
+	Connections []connectionDecode `hcl:"connection,block"`
+	Schemas     []schemaDecode     `hcl:"schema,block"`
+	Routes      []routeDecode      `hcl:"route,block"`
+}
 
-	switch connType {
-	case config.ConnectionTypeSQL:
-		var raw struct {
-			Engine string       `hcl:"engine"`
-			Source string       `hcl:"source"`
-			Pool   *config.Pool `hcl:"pool,block"`
-		}
-		if diags := gohcl.DecodeBody(body, ctx, &raw); diags.HasErrors() {
-			return conn, diags
-		}
+type serverDecode struct {
+	Host         string `hcl:"host,optional"`
+	Port         int    `hcl:"port,optional"`
+	ReadTimeout  string `hcl:"read_timeout,optional"`
+	WriteTimeout string `hcl:"write_timeout,optional"`
+	MaxBodySize  string `hcl:"max_body_size,optional"`
+}
 
-		engine, err := config.ParseSQLEngine(raw.Engine)
+type connectionDecode struct {
+	Type   string      `hcl:"type,label"`
+	Name   string      `hcl:"name,label"`
+	Engine string      `hcl:"engine,optional"`
+	Source string      `hcl:"source,optional"`
+	URL    string      `hcl:"url,optional"`
+	Pool   *poolDecode `hcl:"pool,block"`
+}
+
+type poolDecode struct {
+	MaxOpen *int `hcl:"max_open,optional"`
+	MaxIdle *int `hcl:"max_idle,optional"`
+}
+
+type schemaDecode struct {
+	Name        string        `hcl:"name,label"`
+	Description string        `hcl:"description,optional"`
+	Fields      []fieldDecode `hcl:"field,block"`
+}
+
+type fieldDecode struct {
+	Name        string         `hcl:"name,label"`
+	TypeExpr    hcl.Expression `hcl:"type"`
+	Required    bool           `hcl:"required,optional"`
+	Format      string         `hcl:"format,optional"`
+	DefaultExpr hcl.Expression `hcl:"default,optional"`
+	Description string         `hcl:"description,optional"`
+	Min         *float64       `hcl:"min,optional"`
+	Max         *float64       `hcl:"max,optional"`
+	MinLength   *int           `hcl:"min_length,optional"`
+	MaxLength   *int           `hcl:"max_length,optional"`
+	Enum        []string       `hcl:"enum,optional"`
+}
+
+type routeDecode struct {
+	Endpoint string   `hcl:"endpoint,label"`
+	Summary  string   `hcl:"summary,optional"`
+	Tag      string   `hcl:"tag,optional"`
+	Hidden   bool     `hcl:"hidden,optional"`
+	Body     hcl.Body `hcl:",remain"`
+}
+
+// collectSchemaNames extracts schema labels before full decoding to populate the type scope.
+func collectSchemaNames(body hcl.Body) ([]string, error) {
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: "schema", LabelNames: []string{"name"}},
+		},
+	})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("collect schema names:\n%s", diags.Error())
+	}
+
+	var names []string
+	for _, b := range content.Blocks {
+		if len(b.Labels) > 0 {
+			names = append(names, b.Labels[0])
+		}
+	}
+	return names, nil
+}
+
+// resolveServerConfig parses duration and byte size strings into typed units.
+func resolveServerConfig(raw *serverDecode, target *Server) error {
+	if raw.Host != "" {
+		target.Host = raw.Host
+	}
+	if raw.Port != 0 {
+		target.Port = raw.Port
+	}
+	if raw.ReadTimeout != "" {
+		d, err := ParseDuration(raw.ReadTimeout)
 		if err != nil {
-			return conn, fmt.Errorf("connection %q: %w", name, err)
+			return fmt.Errorf("server.read_timeout: %w", err)
 		}
+		target.ReadTimeout = d
+	}
+	if raw.WriteTimeout != "" {
+		d, err := ParseDuration(raw.WriteTimeout)
+		if err != nil {
+			return fmt.Errorf("server.write_timeout: %w", err)
+		}
+		target.WriteTimeout = d
+	}
+	if raw.MaxBodySize != "" {
+		b, err := ParseByteSize(raw.MaxBodySize)
+		if err != nil {
+			return fmt.Errorf("server.max_body_size: %w", err)
+		}
+		target.MaxBodySize = b
+	}
+	return nil
+}
 
-		conn.Engine = string(engine)
+// resolveConnectionConfig normalizes database engines and configures pool defaults.
+func resolveConnectionConfig(raw connectionDecode) (Connection, error) {
+	connType := strings.ToLower(raw.Type)
+	if connType != "sql" && connType != "valkey" {
+		return Connection{}, fmt.Errorf("connection %q: invalid type %q (allowed: sql, valkey)", raw.Name, raw.Type)
+	}
+
+	conn := Connection{
+		Type:    connType,
+		Name:    raw.Name,
+		MaxOpen: 25,
+		MaxIdle: 25,
+	}
+
+	if raw.Pool != nil {
+		if raw.Pool.MaxOpen != nil {
+			conn.MaxOpen = *raw.Pool.MaxOpen
+		}
+		if raw.Pool.MaxIdle != nil {
+			conn.MaxIdle = *raw.Pool.MaxIdle
+		}
+	}
+
+	if connType == "sql" {
+		canonical := strings.ToLower(strings.TrimSpace(raw.Engine))
+		switch canonical {
+		case "postgres", "mysql", "sqlite", "sqlserver":
+			conn.Engine = canonical
+		case "postgresql", "pgx":
+			return Connection{}, fmt.Errorf("connection %q: use canonical engine name \"postgres\"", raw.Name)
+		case "sqlite3":
+			return Connection{}, fmt.Errorf("connection %q: use canonical engine name \"sqlite\"", raw.Name)
+		case "mariadb":
+			return Connection{}, fmt.Errorf("connection %q: use canonical engine name \"mysql\"", raw.Name)
+		case "mssql":
+			return Connection{}, fmt.Errorf("connection %q: use canonical engine name \"sqlserver\"", raw.Name)
+		default:
+			return Connection{}, fmt.Errorf(
+				"connection %q: unsupported sql engine %q (allowed: postgres, mysql, sqlite, sqlserver)",
+				raw.Name,
+				raw.Engine,
+			)
+		}
 		conn.Source = raw.Source
-		conn.Pool = raw.Pool
+	}
 
-	case config.ConnectionTypeValkey:
-		var raw struct {
-			Engine string `hcl:"engine,optional"`
-			URL    string `hcl:"url"`
-		}
-		if diags := gohcl.DecodeBody(body, ctx, &raw); diags.HasErrors() {
-			return conn, diags
-		}
+	if connType == "valkey" {
 		conn.Engine = "valkey"
-		conn.URL = raw.URL
+		conn.Source = raw.URL
+		if conn.Source == "" {
+			conn.Source = raw.Source
+		}
 	}
 
 	return conn, nil
 }
 
-// decodeSchema extracts reusable model definitions directly into config.Schema.
-func decodeSchema(name string, body hcl.Body, ctx *hcl.EvalContext) (config.Schema, error) {
-	schema := config.Schema{Name: name, Fields: make(map[string]config.Field)}
-
-	content, diags := body.Content(schemaBlockSchema)
-	if diags.HasErrors() {
-		return schema, diags
+// resolveSchema resolves field types and constructs the field map.
+func resolveSchema(raw schemaDecode, evalCtx *hcl.EvalContext) (Schema, error) {
+	s := Schema{
+		Name:        raw.Name,
+		Description: raw.Description,
+		Fields:      make(map[string]Field, len(raw.Fields)),
 	}
 
-	attrs, _ := body.JustAttributes()
-	if attr, ok := attrs["description"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		schema.Description = val.AsString()
-	}
-
-	for _, block := range content.Blocks {
-		if block.Type == "field" {
-			f, err := decodeField(block.Labels[0], block.Body, ctx)
-			if err != nil {
-				return schema, err
-			}
-			schema.Fields[f.Name] = f
-		}
-	}
-
-	return schema, nil
-}
-
-// decodeRoute compiles an endpoint and preserves exact step sequence order.
-func decodeRoute(
-	method, path string,
-	body hcl.Body,
-	ctx *hcl.EvalContext,
-	schemas map[string]config.Schema,
-) (config.CompiledEndpoint, error) {
-	pattern := fmt.Sprintf("%s %s", method, path)
-	ep := config.CompiledEndpoint{
-		Method:       method,
-		Path:         path,
-		RoutePattern: pattern,
-		Request: config.RequestRules{
-			Path:    make(map[string]config.Field),
-			Query:   make(map[string]config.Field),
-			Headers: make(map[string]config.Field),
-			Body:    make(map[string]config.Field),
-		},
-	}
-
-	content, diags := body.Content(routeBodySchema)
-	if diags.HasErrors() {
-		return ep, diags
-	}
-
-	attrs, _ := body.JustAttributes()
-	if attr, ok := attrs["operation_id"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		ep.OperationID = val.AsString()
-	}
-	if attr, ok := attrs["summary"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		ep.Summary = val.AsString()
-	}
-	if attr, ok := attrs["tag"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		ep.Tag = val.AsString()
-	} else {
-		ep.Tag = deriveTag(path)
-	}
-	if attr, ok := attrs["hidden"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		ep.Hidden = val.True()
-	}
-
-	for _, block := range content.Blocks {
-		switch block.Type {
-		case "request":
-			if err := decodeRequestBlock(block.Body, ctx, &ep.Request, schemas); err != nil {
-				return ep, err
-			}
-
-		case "step":
-			stepType, err := config.ParseStepType(block.Labels[0])
-			if err != nil {
-				return ep, err
-			}
-			stepName := ""
-			if len(block.Labels) > 1 {
-				stepName = block.Labels[1]
-			}
-			step, err := decodeStep(stepType, stepName, block.Body, ctx)
-			if err != nil {
-				return ep, err
-			}
-			ep.Pipeline = append(ep.Pipeline, step)
-
-		case "respond":
-			step, err := decodeStep(config.StepTypeRespond, "", block.Body, ctx)
-			if err != nil {
-				return ep, err
-			}
-			ep.Pipeline = append(ep.Pipeline, step)
-
-		case "docs":
-			step, err := decodeStep(config.StepTypeDocs, "", block.Body, ctx)
-			if err != nil {
-				return ep, err
-			}
-			ep.Pipeline = append(ep.Pipeline, step)
-
-		case "spec":
-			step, err := decodeStep(config.StepTypeSpec, "", block.Body, ctx)
-			if err != nil {
-				return ep, err
-			}
-			ep.Pipeline = append(ep.Pipeline, step)
-		}
-	}
-
-	return ep, nil
-}
-
-// decodeStep initializes a Step directly into config types, ensuring WhenExpr is nil unless explicitly declared.
-func decodeStep(stepType config.StepType, name string, body hcl.Body, ctx *hcl.EvalContext) (config.Step, error) {
-	step := config.Step{Type: stepType, Name: name}
-
-	attrs, _ := body.JustAttributes()
-	if whenAttr, ok := attrs["when"]; ok {
-		step.WhenExpr = whenAttr.Expr
-	}
-
-	switch stepType {
-	case config.StepTypeSQL:
-		s := &config.SQLStep{}
-		if attr, ok := attrs["connection"]; ok {
-			s.Connection = resolveIdentifier(attr.Expr)
-		}
-		if attr, ok := attrs["query"]; ok {
-			s.Query = exprToString(attr.Expr)
-		}
-		if attr, ok := attrs["args"]; ok {
-			s.ArgsExpr = attr.Expr
+	for _, fd := range raw.Fields {
+		typeVal, diags := fd.TypeExpr.Value(evalCtx)
+		if diags.HasErrors() {
+			return Schema{}, fmt.Errorf("schema %q field %q type: %w", raw.Name, fd.Name, diags)
 		}
 
-		content, _ := body.Content(sqlStepSchema)
-		for _, b := range content.Blocks {
-			if b.Type == "catch" {
-				cAttrs, _ := b.Body.JustAttributes()
-				catch := config.SQLCatch{Code: b.Labels[0], Status: 400}
-				if statusAttr, ok := cAttrs["status"]; ok {
-					catch.Status = exprToInt(statusAttr.Expr, 400)
-				}
-				if bodyAttr, ok := cAttrs["body"]; ok {
-					catch.BodyExpr = bodyAttr.Expr
-				}
-				s.Catches = append(s.Catches, catch)
-			}
-		}
-		step.SQL = s
-
-	case config.StepTypeValkey:
-		s := &config.ValkeyStep{}
-		if attr, ok := attrs["connection"]; ok {
-			s.Connection = resolveIdentifier(attr.Expr)
-		}
-		if attr, ok := attrs["op"]; ok {
-			op, err := config.ParseValkeyOp(exprToString(attr.Expr))
-			if err != nil {
-				return step, err
-			}
-			s.Op = op
-		}
-		if attr, ok := attrs["key"]; ok {
-			s.KeyExpr = attr.Expr
-		}
-		if attr, ok := attrs["value"]; ok {
-			s.ValExpr = attr.Expr
-		}
-		if attr, ok := attrs["ttl"]; ok {
-			durStr := exprToString(attr.Expr)
-			s.TTL, _ = time.ParseDuration(durStr)
-		}
-		step.Valkey = s
-
-	case config.StepTypeRespond:
-		s := &config.RespondStep{Status: 200, Headers: make(map[string]string)}
-		if attr, ok := attrs["status"]; ok {
-			s.Status = exprToInt(attr.Expr, 200)
-		}
-		if attr, ok := attrs["schema"]; ok {
-			s.SchemaRef = resolveIdentifier(attr.Expr)
-		}
-		if attr, ok := attrs["body"]; ok {
-			s.BodyExpr = attr.Expr
-		}
-		if attr, ok := attrs["headers"]; ok {
-			s.Headers = decodeHeaders(attr.Expr, ctx)
-		}
-		step.Respond = s
-
-	case config.StepTypeDocs:
-		s := &config.DocsStep{Renderer: config.DocsRendererScalar, SpecURL: "/openapi.json"}
-		if attr, ok := attrs["renderer"]; ok {
-			r, err := config.ParseDocsRenderer(exprToString(attr.Expr))
-			if err != nil {
-				return step, err
-			}
-			s.Renderer = r
-		}
-		if attr, ok := attrs["spec_url"]; ok {
-			s.SpecURL = exprToString(attr.Expr)
-		}
-		if attr, ok := attrs["title"]; ok {
-			s.Title = exprToString(attr.Expr)
-		}
-		if attr, ok := attrs["template"]; ok {
-			s.Template = exprToString(attr.Expr)
-		}
-		step.Docs = s
-
-	case config.StepTypeSpec:
-		s := &config.SpecStep{Format: config.SpecFormatJSON}
-		if attr, ok := attrs["format"]; ok {
-			f, err := config.ParseSpecFormat(exprToString(attr.Expr))
-			if err != nil {
-				return step, err
-			}
-			s.Format = f
-		}
-		step.Spec = s
-
-	case config.StepTypeGo:
-		s := &config.GoStep{}
-		if attr, ok := attrs["use"]; ok {
-			s.Use = exprToString(attr.Expr)
-		}
-		if attr, ok := attrs["args"]; ok {
-			s.ArgsExpr = attr.Expr
-		}
-		step.Go = s
-
-	case config.StepTypeStarlark:
-		s := &config.StarlarkStep{}
-		if attr, ok := attrs["source"]; ok {
-			s.Source = exprToString(attr.Expr)
-		}
-		step.Starlark = s
-
-	case config.StepTypeHTTP:
-		s := &config.HTTPStep{
-			Method:  "GET",
-			Headers: make(map[string]string),
-			Timeout: scalar.Duration(15 * time.Second),
-		}
-		if attr, ok := attrs["method"]; ok {
-			s.Method = exprToString(attr.Expr)
-		}
-		if attr, ok := attrs["url"]; ok {
-			s.URLExpr = attr.Expr
-		}
-		if attr, ok := attrs["timeout"]; ok {
-			durStr := exprToString(attr.Expr)
-			if d, err := scalar.ParseDuration(durStr); err == nil {
-				s.Timeout = d
-			}
-		}
-		if attr, ok := attrs["body"]; ok {
-			s.BodyExpr = attr.Expr
-		}
-		if attr, ok := attrs["headers"]; ok {
-			s.Headers = decodeHeaders(attr.Expr, ctx)
-		}
-		step.HTTP = s
-	}
-
-	return step, nil
-}
-
-// decodeHeaders evaluates a map or object expression into a standard map[string]string.
-func decodeHeaders(expr hcl.Expression, ctx *hcl.EvalContext) map[string]string {
-	headers := make(map[string]string)
-	if expr == nil {
-		return headers
-	}
-	val, diags := expr.Value(ctx)
-	if diags.HasErrors() || val.IsNull() || !val.IsKnown() {
-		return headers
-	}
-	if val.Type().IsObjectType() || val.Type().IsMapType() {
-		for it := val.ElementIterator(); it.Next(); {
-			k, v := it.Element()
-			if v.Type() == cty.String {
-				headers[k.AsString()] = v.AsString()
-			} else {
-				headers[k.AsString()] = fmt.Sprintf("%v", ctyconv.ToNative(v))
-			}
-		}
-	}
-	return headers
-}
-
-// decodeRequestBlock populates ingress validation rules directly into config.RequestRules.
-func decodeRequestBlock(body hcl.Body, ctx *hcl.EvalContext, req *config.RequestRules, schemas map[string]config.Schema) error {
-	attrs, _ := body.JustAttributes()
-
-	// Support schema references across all coordinates
-	if attr, ok := attrs["body"]; ok {
-		req.BodyRef = resolveIdentifier(attr.Expr)
-		if s, ok := schemas[req.BodyRef]; ok {
-			maps.Copy(req.Body, s.Fields)
-		}
-	}
-	if attr, ok := attrs["headers"]; ok {
-		ref := resolveIdentifier(attr.Expr)
-		if s, ok := schemas[ref]; ok {
-			maps.Copy(req.Headers, s.Fields)
-		}
-	}
-	if attr, ok := attrs["query"]; ok {
-		ref := resolveIdentifier(attr.Expr)
-		if s, ok := schemas[ref]; ok {
-			maps.Copy(req.Query, s.Fields)
-		}
-	}
-	if attr, ok := attrs["path"]; ok {
-		ref := resolveIdentifier(attr.Expr)
-		if s, ok := schemas[ref]; ok {
-			maps.Copy(req.Path, s.Fields)
-		}
-	}
-
-	content, _ := body.Content(requestBlockSchema)
-	for _, block := range content.Blocks {
-		var name string
-		if len(block.Labels) > 0 {
-			name = block.Labels[0]
-		}
-
-		switch block.Type {
-		case "path":
-			f, err := decodeField(name, block.Body, ctx)
-			if err != nil {
-				return err
-			}
-			req.Path[name] = f
-		case "query":
-			f, err := decodeField(name, block.Body, ctx)
-			if err != nil {
-				return err
-			}
-			req.Query[name] = f
-		case "header":
-			f, err := decodeField(name, block.Body, ctx)
-			if err != nil {
-				return err
-			}
-			req.Headers[name] = f
-		case "body":
-			bodyContent, _ := block.Body.Content(fieldsContainerSchema)
-			for _, b := range bodyContent.Blocks {
-				if b.Type == "field" {
-					f, err := decodeField(b.Labels[0], b.Body, ctx)
-					if err != nil {
-						return err
-					}
-					req.Body[f.Name] = f
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// decodeField decodes a single validation property directly into config.Field.
-func decodeField(name string, body hcl.Body, ctx *hcl.EvalContext) (config.Field, error) {
-	f := config.Field{Name: name}
-	attrs, _ := body.JustAttributes()
-
-	if attr, ok := attrs["type"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		dataType, schemaRef, itemsType, err := config.ParseFieldType(val.AsString())
+		spec, err := TypeSpecFromCty(typeVal)
 		if err != nil {
-			return f, fmt.Errorf("field %q: %w", name, err)
+			return Schema{}, fmt.Errorf("schema %q field %q: %w", raw.Name, fd.Name, err)
 		}
-		f.Type = dataType
-		f.SchemaRef = schemaRef
-		f.ItemsType = itemsType
-	} else {
-		return f, fmt.Errorf("field %q is missing required attribute 'type'", name)
-	}
 
-	if attr, ok := attrs["format"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		formatStr := val.AsString()
-		if err := config.ValidateFormat(formatStr); err != nil {
-			return f, fmt.Errorf("field %q: %w", name, err)
+		field := Field{
+			Name:        fd.Name,
+			Type:        spec,
+			Required:    fd.Required,
+			Format:      Format(fd.Format),
+			Description: fd.Description,
+			Min:         fd.Min,
+			Max:         fd.Max,
+			MinLength:   fd.MinLength,
+			MaxLength:   fd.MaxLength,
+			Enum:        fd.Enum,
 		}
-		f.Format = config.Format(formatStr)
-	}
 
-	if attr, ok := attrs["required"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		f.Required = val.True()
-	}
-	if attr, ok := attrs["description"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		f.Description = val.AsString()
-	}
-	if attr, ok := attrs["default"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		f.Default = ctyconv.ToNative(val)
-	}
-	if attr, ok := attrs["min"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		n, _ := val.AsBigFloat().Float64()
-		f.Min = &n
-	}
-	if attr, ok := attrs["max"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		n, _ := val.AsBigFloat().Float64()
-		f.Max = &n
-	}
-	if attr, ok := attrs["min_length"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		i, _ := val.AsBigFloat().Int64()
-		n := int(i)
-		f.MinLength = &n
-	}
-	if attr, ok := attrs["max_length"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		i, _ := val.AsBigFloat().Int64()
-		n := int(i)
-		f.MaxLength = &n
-	}
-	if attr, ok := attrs["enum"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		if val.Type().IsTupleType() || val.Type().IsListType() {
-			for it := val.ElementIterator(); it.Next(); {
-				_, el := it.Element()
-				f.Enum = append(f.Enum, el.AsString())
+		if fd.DefaultExpr != nil {
+			val, dDiags := fd.DefaultExpr.Value(evalCtx)
+			if dDiags.HasErrors() {
+				return Schema{}, fmt.Errorf("schema %q field %q default: %w", raw.Name, fd.Name, dDiags)
 			}
+			field.Default = toNative(val)
 		}
+
+		s.Fields[field.Name] = field
 	}
 
-	return f, nil
+	return s, nil
 }
 
-// decodeOpenAPIMetadata populates global documentation metadata from an openapi block.
-func decodeOpenAPIMetadata(body hcl.Body, ctx *hcl.EvalContext, meta *config.OpenAPIMetadata) error {
-	content, diags := body.Content(openapiBlockSchema)
+// resolveRoute dynamically builds a route schema from registered step keywords and decodes steps in exact declared order.
+func (p *Parser) resolveRoute(rb routeDecode, evalCtx *hcl.EvalContext, funcs map[string]function.Function) (Route, error) {
+	parts := strings.SplitN(strings.TrimSpace(rb.Endpoint), " ", 2)
+	if len(parts) != 2 {
+		return Route{}, fmt.Errorf("invalid route label %q: expected 'METHOD /path'", rb.Endpoint)
+	}
+
+	r := Route{
+		Method:  strings.ToUpper(parts[0]),
+		Path:    parts[1],
+		Summary: rb.Summary,
+		Tag:     rb.Tag,
+		Hidden:  rb.Hidden,
+	}
+
+	routeBodySchema := &hcl.BodySchema{
+		Blocks: append([]hcl.BlockHeaderSchema{
+			{Type: "request"},
+		}, p.registry.BlockHeaderSchemas()...),
+	}
+
+	content, diags := rb.Body.Content(routeBodySchema)
 	if diags.HasErrors() {
-		return diags
+		return Route{}, fmt.Errorf("route %q:\n%s", rb.Endpoint, diags.Error())
+	}
+
+	for _, b := range content.Blocks {
+		if b.Type == "request" {
+			rules, err := resolveRequest(b.Body, evalCtx)
+			if err != nil {
+				return Route{}, fmt.Errorf("route %q: %w", rb.Endpoint, err)
+			}
+			r.Request = rules
+			continue
+		}
+
+		step, err := p.registry.Decode(b, evalCtx, funcs)
+		if err != nil {
+			return Route{}, fmt.Errorf("route %q: %w", rb.Endpoint, err)
+		}
+
+		r.Steps = append(r.Steps, step)
+	}
+
+	return r, nil
+}
+
+// resolveRequest decodes ingress validation blocks and assigned schema bodies.
+func resolveRequest(body hcl.Body, evalCtx *hcl.EvalContext) (*Request, error) {
+	rules := &Request{
+		Path:    make(map[string]Field),
+		Query:   make(map[string]Field),
+		Headers: make(map[string]Field),
+		Body:    make(map[string]Field),
 	}
 
 	attrs, _ := body.JustAttributes()
-	if attr, ok := attrs["title"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		meta.Title = val.AsString()
-	}
-	if attr, ok := attrs["version"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		meta.Version = val.AsString()
-	}
-	if attr, ok := attrs["description"]; ok {
-		val, _ := attr.Expr.Value(ctx)
-		meta.Description = val.AsString()
-	}
-
-	for _, block := range content.Blocks {
-		switch block.Type {
-		case "server":
-			var s config.OpenAPIServer
-			_ = gohcl.DecodeBody(block.Body, ctx, &s)
-			meta.Servers = append(meta.Servers, s)
-		case "tag":
-			var t config.OpenAPITag
-			_ = gohcl.DecodeBody(block.Body, ctx, &t)
-			meta.Tags = append(meta.Tags, t)
-		case "contact":
-			var c config.Contact
-			_ = gohcl.DecodeBody(block.Body, ctx, &c)
-			meta.Contact = &c
-		case "license":
-			var l config.License
-			_ = gohcl.DecodeBody(block.Body, ctx, &l)
-			meta.License = &l
+	if attr, ok := attrs["body"]; ok {
+		val, diags := attr.Expr.Value(evalCtx)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+		if val.Type() == cty.String {
+			rules.BodyRef = val.AsString()
 		}
 	}
-	return nil
-}
 
-// validateIntegrity ensures that step targets point to declared connections and schemas,
-// and that no duplicate route patterns exist across manifest files.
-func validateIntegrity(cfg *config.Config) error {
-	seenRoutes := make(map[string]struct{}, len(cfg.Endpoints))
+	content, _, diags := body.PartialContent(requestSchema)
+	if diags.HasErrors() {
+		return nil, diags
+	}
 
-	for _, s := range cfg.Schemas {
-		for _, f := range s.Fields {
-			if f.SchemaRef != "" {
-				if _, exists := cfg.Schemas[f.SchemaRef]; !exists {
-					return fmt.Errorf("schema %q field %q references unknown schema %q", s.Name, f.Name, f.SchemaRef)
+	for _, b := range content.Blocks {
+		switch b.Type {
+		case "path", "query", "header":
+			var fd fieldDecode
+			fd.Name = b.Labels[0]
+			if diags := gohcl.DecodeBody(b.Body, evalCtx, &fd); diags.HasErrors() {
+				return nil, diags
+			}
+
+			typeVal, tDiags := fd.TypeExpr.Value(evalCtx)
+			if tDiags.HasErrors() {
+				return nil, tDiags
+			}
+			spec, err := TypeSpecFromCty(typeVal)
+			if err != nil {
+				return nil, err
+			}
+
+			f := Field{
+				Name:        fd.Name,
+				Type:        spec,
+				Required:    fd.Required,
+				Format:      Format(fd.Format),
+				Description: fd.Description,
+				Min:         fd.Min,
+				Max:         fd.Max,
+				MinLength:   fd.MinLength,
+				MaxLength:   fd.MaxLength,
+				Enum:        fd.Enum,
+			}
+
+			switch b.Type {
+			case "path":
+				rules.Path[f.Name] = f
+			case "query":
+				rules.Query[f.Name] = f
+			case "header":
+				rules.Headers[f.Name] = f
+			}
+
+		case "body":
+			var bodyBlock struct {
+				Fields []fieldDecode `hcl:"field,block"`
+			}
+			if diags := gohcl.DecodeBody(b.Body, evalCtx, &bodyBlock); diags.HasErrors() {
+				return nil, diags
+			}
+
+			for _, fd := range bodyBlock.Fields {
+				typeVal, tDiags := fd.TypeExpr.Value(evalCtx)
+				if tDiags.HasErrors() {
+					return nil, tDiags
+				}
+				spec, err := TypeSpecFromCty(typeVal)
+				if err != nil {
+					return nil, err
+				}
+
+				rules.Body[fd.Name] = Field{
+					Name:        fd.Name,
+					Type:        spec,
+					Required:    fd.Required,
+					Format:      Format(fd.Format),
+					Description: fd.Description,
+					Min:         fd.Min,
+					Max:         fd.Max,
+					MinLength:   fd.MinLength,
+					MaxLength:   fd.MaxLength,
+					Enum:        fd.Enum,
 				}
 			}
 		}
 	}
 
-	for _, ep := range cfg.Endpoints {
-		if _, exists := seenRoutes[ep.RoutePattern]; exists {
-			return fmt.Errorf("duplicate route pattern %q declared across manifests", ep.RoutePattern)
-		}
-		seenRoutes[ep.RoutePattern] = struct{}{}
+	return rules, nil
+}
 
-		for _, s := range ep.Pipeline {
-			var connName string
-			var expectedType config.ConnectionType
+// buildStaticEvalContext constructs an evaluation context populated with built-in types and functions.
+func buildStaticEvalContext(schemas []string) *hcl.EvalContext {
+	vars := BuiltinTypeVariables(schemas...)
+	funcs := BuiltinTypeFunctions()
+	funcs["env"] = envFunction()
 
-			if s.SQL != nil {
-				connName = s.SQL.Connection
-				expectedType = config.ConnectionTypeSQL
-			} else if s.Valkey != nil {
-				connName = s.Valkey.Connection
-				expectedType = config.ConnectionTypeValkey
-			}
+	return &hcl.EvalContext{
+		Variables: vars,
+		Functions: funcs,
+	}
+}
 
-			if connName != "" {
-				conn, exists := cfg.Connections[connName]
-				if !exists {
-					return fmt.Errorf("endpoint %q: step %q references undeclared connection %q", ep.RoutePattern, s.Name, connName)
+// runtimeExprFunctions returns helper functions exposed during request-time expression evaluation.
+func runtimeExprFunctions() map[string]function.Function {
+	return map[string]function.Function{
+		"env": envFunction(),
+		"now": function.New(&function.Spec{
+			Params: []function.Parameter{},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				return cty.StringVal(time.Now().UTC().Format(time.RFC3339)), nil
+			},
+		}),
+		"uuid": function.New(&function.Spec{
+			Params: []function.Parameter{},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				return cty.StringVal(uuid.New().String()), nil
+			},
+		}),
+		"problem": function.New(&function.Spec{
+			Params: []function.Parameter{
+				{Name: "status", Type: cty.Number},
+				{Name: "detail", Type: cty.String},
+			},
+			Type: function.StaticReturnType(cty.Object(map[string]cty.Type{
+				"status": cty.Number,
+				"title":  cty.String,
+				"detail": cty.String,
+			})),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				status, _ := args[0].AsBigFloat().Int64()
+				detail := args[1].AsString()
+				title := http.StatusText(int(status))
+				if title == "" {
+					title = "Error"
 				}
-				if conn.Type != expectedType {
-					return fmt.Errorf(
-						"endpoint %q: step %q (%s) cannot use connection %q of type %s",
-						ep.RoutePattern,
-						s.Name,
-						s.Type,
-						connName,
-						conn.Type,
-					)
-				}
+				return cty.ObjectVal(map[string]cty.Value{
+					"status": cty.NumberIntVal(status),
+					"title":  cty.StringVal(title),
+					"detail": cty.StringVal(detail),
+				}), nil
+			},
+		}),
+		"upper": function.New(&function.Spec{
+			Params: []function.Parameter{{Name: "s", Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				return cty.StringVal(strings.ToUpper(args[0].AsString())), nil
+			},
+		}),
+		"lower": function.New(&function.Spec{
+			Params: []function.Parameter{{Name: "s", Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				return cty.StringVal(strings.ToLower(args[0].AsString())), nil
+			},
+		}),
+		"trim": function.New(&function.Spec{
+			Params: []function.Parameter{{Name: "s", Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+				return cty.StringVal(strings.TrimSpace(args[0].AsString())), nil
+			},
+		}),
+	}
+}
+
+// envFunction provides an HCL function reading environment variables with optional fallbacks.
+func envFunction() function.Function {
+	return function.New(&function.Spec{
+		Params: []function.Parameter{
+			{Name: "key", Type: cty.String},
+		},
+		VarParam: &function.Parameter{
+			Name: "default",
+			Type: cty.String,
+		},
+		Type: function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			key := args[0].AsString()
+			if val, exists := os.LookupEnv(key); exists && val != "" {
+				return cty.StringVal(val), nil
 			}
-
-			if s.Respond != nil && s.Respond.SchemaRef != "" {
-				ref := strings.TrimPrefix(s.Respond.SchemaRef, "[]")
-				if _, exists := cfg.Schemas[ref]; !exists {
-					return fmt.Errorf("endpoint %q: respond step references unknown schema %q", ep.RoutePattern, s.Respond.SchemaRef)
-				}
+			if len(args) > 1 && !args[1].IsNull() {
+				return cty.StringVal(args[1].AsString()), nil
 			}
-		}
-
-		if ep.Request.BodyRef != "" {
-			if _, exists := cfg.Schemas[ep.Request.BodyRef]; !exists {
-				return fmt.Errorf("endpoint %q: request body references unknown schema %q", ep.RoutePattern, ep.Request.BodyRef)
-			}
-		}
-	}
-	return nil
+			return cty.StringVal(""), nil
+		},
+	})
 }
 
-// deriveTag computes a default operation tag from the first resource path segment.
-func deriveTag(path string) string {
-	parts := strings.SplitSeq(strings.Trim(path, "/"), "/")
-	for p := range parts {
-		if p != "api" && !strings.HasPrefix(p, "v") && !strings.HasPrefix(p, "{") {
-			return p
-		}
-	}
-	return "default"
-}
-
-// resolveIdentifier extracts a clean identifier string from either a string literal or an HCL scope traversal.
-func resolveIdentifier(expr hcl.Expression) string {
-	if expr == nil {
-		return ""
-	}
-	val, diags := expr.Value(nil)
-	if !diags.HasErrors() && val.IsKnown() && !val.IsNull() && val.Type() == cty.String {
-		return val.AsString()
-	}
-	traversal, diags := hcl.AbsTraversalForExpr(expr)
-	if !diags.HasErrors() && len(traversal) > 0 {
-		lastTraverser := traversal[len(traversal)-1]
-		switch step := lastTraverser.(type) {
-		case hcl.TraverseAttr:
-			return step.Name
-		case hcl.TraverseRoot:
-			return step.Name
-		}
-	}
-	return ""
-}
-
-// exprToString attempts constant expression evaluation or extracts a single attribute string.
-func exprToString(expr hcl.Expression) string {
-	if expr == nil {
-		return ""
-	}
-	val, diags := expr.Value(nil)
-	if !diags.HasErrors() && val.IsKnown() && !val.IsNull() && val.Type() == cty.String {
-		return val.AsString()
-	}
-	return resolveIdentifier(expr)
-}
-
-// exprToInt evaluates a constant expression as an integer, falling back on error.
-func exprToInt(expr hcl.Expression, fallback int) int {
-	if expr == nil {
-		return fallback
-	}
-	val, diags := expr.Value(nil)
-	if !diags.HasErrors() && val.IsKnown() && !val.IsNull() && val.Type() == cty.Number {
-		i, _ := val.AsBigFloat().Int64()
-		return int(i)
-	}
-	return fallback
-}
-
-var rootSchema = &hcl.BodySchema{
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "server"},
-		{Type: "openapi"},
-		{Type: "telemetry"},
-		{Type: "connection", LabelNames: []string{"type", "name"}},
-		{Type: "schema", LabelNames: []string{"name"}},
-		{Type: "route", LabelNames: []string{"endpoint"}},
-	},
-}
-
-var openapiBlockSchema = &hcl.BodySchema{
+var requestSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
-		{Name: "title"},
-		{Name: "version"},
-		{Name: "description"},
+		{Name: "body"},
 	},
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "server"},
-		{Type: "tag"},
-		{Type: "contact"},
-		{Type: "license"},
-	},
-}
-
-var routeBodySchema = &hcl.BodySchema{
-	Attributes: []hcl.AttributeSchema{
-		{Name: "summary"},
-		{Name: "tag"},
-		{Name: "hidden"},
-		{Name: "operation_id"},
-	},
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "request"},
-		{Type: "step", LabelNames: []string{"type", "name"}},
-		{Type: "respond"},
-		{Type: "docs"},
-		{Type: "spec"},
-	},
-}
-
-var schemaBlockSchema = &hcl.BodySchema{
-	Attributes: []hcl.AttributeSchema{
-		{Name: "description"},
-	},
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "field", LabelNames: []string{"name"}},
-	},
-}
-
-var requestBlockSchema = &hcl.BodySchema{
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "path", LabelNames: []string{"name"}},
 		{Type: "query", LabelNames: []string{"name"}},
 		{Type: "header", LabelNames: []string{"name"}},
 		{Type: "body"},
-	},
-}
-
-var fieldsContainerSchema = &hcl.BodySchema{
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "field", LabelNames: []string{"name"}},
-	},
-}
-
-var sqlStepSchema = &hcl.BodySchema{
-	Blocks: []hcl.BlockHeaderSchema{
-		{Type: "catch", LabelNames: []string{"code"}},
 	},
 }

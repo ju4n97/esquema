@@ -5,10 +5,10 @@ description: Invoke registered native Go callback functions with boundary panic 
 
 # go
 
-The `go` step calls a custom Go function registered on the engine. Use it when you need capabilities outside SQL and Starlark, such as calling custom SDKs or executing proprietary algorithms.
+The `go` step calls a custom Go callback function registered on the runtime engine.
 
 ```hcl
-step "go" "compute_tax" {
+go "compute_tax" {
   use = "tax.calculate"
   args = {
     amount   = ctx.request.body.amount
@@ -20,35 +20,35 @@ step "go" "compute_tax" {
 
 ## Handler signature
 
-Register handlers using the `hclapi.WithStep` option when initializing the engine:
+Register handlers using the `hclapi.WithStep` or `hclapi.WithGoHandler` option:
 
 ```go
-func(ctx context.Context, step *hclapi.Step) (any, error)
+func(ctx context.Context, req *hclapi.GoRequest) (any, error)
 ```
 
-The `*hclapi.Step` struct exposes:
+The `*hclapi.GoRequest` struct exposes:
 
 ```go
-type Step struct {
-    Name    string
-    Args    Args
-    Request *http.Request
+type GoRequest struct {
+    Name    string        // Step name declared in manifest
+    Args    Args          // Evaluated arguments from HCL args map
+    Request *http.Request // Raw standard *http.Request
 }
 ```
 
 ## Working with arguments
 
-`step.Args` provides typed helpers with automatic coercion:
+`req.Args` provides typed helpers with automatic coercion:
 
 ```go
-func calculateTax(ctx context.Context, step *hclapi.Step) (any, error) {
+func calculateTax(ctx context.Context, req *hclapi.GoRequest) (any, error) {
     // Typed extraction with fallback
-    amount := step.Args.GetOr("amount", 0.0)
-    country := step.Args.GetOr("country", "CO")
+    amount := req.Args.GetOr("amount", 0.0)
+    country := req.Args.GetOr("country", "CO")
 
-    // Bind all arguments into a struct in one line
+    // Bind all arguments into a destination struct
     var params TaxParams
-    if err := step.Args.Bind(&params); err != nil {
+    if err := req.Args.Bind(&params); err != nil {
         return nil, err
     }
 
@@ -60,6 +60,6 @@ func calculateTax(ctx context.Context, step *hclapi.Step) (any, error) {
 
 Panics inside Go steps are caught by an internal boundary guard:
 
-- The panic stacktrace is logged through `slog` with the request `trace_id` attached.
-- The step's OpenTelemetry span is marked as an error.
-- The client receives a clean RFC 9457 HTTP 500 Problem Details response without crashing the server.
+- The panic stacktrace is logged through `slog` with the request `trace_id` and `span_id` attached.
+- The step's OpenTelemetry span is marked with `codes.Error`.
+- The client receives RFC 9457 HTTP 500 Problem Details response without crashing the process.

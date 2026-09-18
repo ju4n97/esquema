@@ -11,18 +11,18 @@
   },
   {
     "type": "file",
-    "name": "connections",
-    "label": "connections"
+    "name": "connection",
+    "label": "connection"
   },
   {
     "type": "file",
-    "name": "schemas",
-    "label": "schemas"
+    "name": "schema",
+    "label": "schema"
   },
   {
     "type": "file",
-    "name": "routes",
-    "label": "routes"
+    "name": "route",
+    "label": "route"
   },
   {
     "type": "file",

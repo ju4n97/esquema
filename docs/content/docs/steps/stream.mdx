@@ -1,0 +1,85 @@
+---
+title: stream
+description: Stream real-time Server-Sent Events, NDJSON, CSV, or raw binary data.
+---
+
+# stream
+
+The `stream` step terminates pipeline execution and flushes a live data stream to the client. It consumes standard Go iterators (`RecordSeq`) or raw readers (`io.Reader`).
+
+```hcl
+route "GET /events" {
+  valkey "feed" {
+    connection = "broker"
+    op         = "subscribe"
+    channel    = "audit.logs"
+  }
+
+  stream "sse" {
+    source    = steps.feed.stream
+    event     = "audit"
+    heartbeat = "15s"
+    retry     = "3s"
+  }
+}
+```
+
+## Supported formats
+
+| Format   | Label             | Default Content-Type      | Expected source type    |
+| :------- | :---------------- | :------------------------ | :---------------------- |
+| `sse`    | `stream "sse"`    | `text/event-stream`       | `iter.Seq2[any, error]` |
+| `ndjson` | `stream "ndjson"` | `application/x-ndjson`    | `iter.Seq2[any, error]` |
+| `csv`    | `stream "csv"`    | `text/csv; charset=utf-8` | `iter.Seq2[any, error]` |
+| `raw`    | `stream "raw"`    | configured/octet-stream   | `io.Reader`             |
+
+## Attributes
+
+| Attribute      | Type       | Applicable formats | Default  | Description                                      |
+| :------------- | :--------- | :----------------- | :------- | :----------------------------------------------- |
+| `source`       | `any`      | all                | required | Context iterator or reader expression            |
+| `event`        | `string`   | `sse`              | `""`     | SSE event type identifier                        |
+| `heartbeat`    | `Duration` | `sse`              | `"15s"`  | Periodic comment `: heartbeat\n\n` interval      |
+| `retry`        | `Duration` | `sse`              | `""`     | Client reconnection delay sent as `retry: <ms>`  |
+| `flush_every`  | `int`      | `ndjson`           | `1`      | Buffer size before forcing an HTTP network flush |
+| `headers`      | `map`      | all                | `{}`     | Custom headers to send with the initial response |
+| `content_type` | `string`   | `raw`              | `""`     | Custom Media-Type for raw streams                |
+| `schema`       | `TypeSpec` | `sse`, `ndjson`    | `null`   | Schema model used for egress field masking       |
+| `when`         | `bool`     | all                | `true`   | Conditional execution guard                      |
+
+## Streaming SQL queries
+
+Export database rows as newline-delimited JSON (`ndjson`) without loading the entire result set into memory:
+
+```hcl
+route "GET /export/transactions" {
+  sql "fetch" {
+    connection = "primary"
+    query      = "SELECT id, amount, timestamp FROM transactions"
+    stream     = true
+  }
+
+  stream "ndjson" {
+    source      = steps.fetch.stream
+    flush_every = 100
+  }
+}
+```
+
+## Streaming raw binary or proxy data
+
+Pipe outbound HTTP responses directly to the incoming client connection:
+
+```hcl
+route "GET /download/avatar" {
+  http "cdn" {
+    url    = "https://cdn.example.com/avatars/user-123.jpg"
+    stream = true
+  }
+
+  stream "raw" {
+    content_type = "image/jpeg"
+    source       = steps.cdn.stream
+  }
+}
+```

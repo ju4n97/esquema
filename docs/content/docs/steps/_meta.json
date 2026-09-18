@@ -26,6 +26,16 @@
   },
   {
     "type": "file",
+    "name": "stream",
+    "label": "stream"
+  },
+  {
+    "type": "file",
+    "name": "respond",
+    "label": "respond"
+  },
+  {
+    "type": "file",
     "name": "docs",
     "label": "docs"
   },
@@ -33,10 +43,5 @@
     "type": "file",
     "name": "spec",
     "label": "spec"
-  },
-  {
-    "type": "file",
-    "name": "respond",
-    "label": "respond"
   }
 ]

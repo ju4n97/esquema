@@ -5,10 +5,8 @@ server {
 
 telemetry {
   service_name = "zero-dependency-api"
-  logging {
-    level  = "info"
-    format = "text"
-  }
+  log_level    = "info"
+  log_format   = "text"
 }
 
 route "GET /openapi.json" {
@@ -27,14 +25,14 @@ route "GET /api/v1/health" {
   summary = "System health check"
   tag     = "system"
 
-  step "starlark" "sysinfo" {
+  starlark "sysinfo" {
     source = <<-STARLARK
       def execute(ctx):
-          return {
-              "status": "healthy",
-              "engine": "hclapi",
-              "timestamp": ctx["timestamp"],
-          }
+        return {
+          "status": "healthy",
+          "engine": "hclapi",
+          "timestamp": ctx["timestamp"],
+        }
     STARLARK
   }
 
@@ -51,31 +49,31 @@ route "POST /api/v1/sanitize" {
   request {
     body {
       field "prefix" {
-        type    = "string"
+        type    = string
         default = "tag"
       }
       field "tags" {
-        type     = "array"
+        type     = list(string)
         required = true
       }
     }
   }
 
-  step "starlark" "format_tags" {
+  starlark "format_tags" {
     source = <<-STARLARK
       def execute(ctx):
-          body = ctx["request"]["body"] or {}
-          prefix = body.get("prefix", "tag")
-          raw_tags = body.get("tags", [])
-          cleaned = list(set([
-              prefix + ":" + t.strip().lower()
-              for t in raw_tags
-              if len(t.strip()) > 0
-          ]))
-          return {
-              "count": len(cleaned),
-              "tags": cleaned,
-          }
+        body = ctx["request"]["body"] or {}
+        prefix = body.get("prefix", "tag")
+        raw_tags = body.get("tags", [])
+        cleaned = list(set([
+          prefix + ":" + t.strip().lower()
+          for t in raw_tags
+          if len(t.strip()) > 0
+        ]))
+        return {
+          "count": len(cleaned),
+          "tags": cleaned,
+        }
     STARLARK
   }
 

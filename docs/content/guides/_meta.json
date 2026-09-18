@@ -3,5 +3,10 @@
     "type": "file",
     "name": "go",
     "label": "Go integration"
+  },
+  {
+    "type": "file",
+    "name": "custom-steps",
+    "label": "Custom pipeline steps"
   }
 ]

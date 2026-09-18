@@ -5,104 +5,154 @@ description: Reusable pipeline recipes for lookups, transformations, and constra
 
 # Patterns
 
-Common pipeline patterns you'll use across endpoint configurations.
+Common patterns you'll use across endpoint configurations.
 
 ## 404 on a missing record
 
 Query a single row, verify `rows_affected`, and return a standard `problem()` payload if it's missing:
 
-```yaml
-connections:
-  sqlite.main:
-    driver: sqlite
-    source: "file::memory:?cache=shared"
+```hcl
+connection "sql" "primary" {
+  engine = "sqlite"
+  source = "file::memory:?cache=shared"
+}
 
-endpoints:
-  "GET /api/v1/users/{id}":
-    pipeline:
-      - type: sql
-        name: find_user
-        connection: sqlite.main
-        query: "SELECT id, name, email FROM users WHERE id = @id"
-        args:
-          id: ctx.request.path.id
+route "GET /api/v1/users/{id}" {
+  sql "find_user" {
+    connection = "primary"
+    query      = "SELECT id, name, email FROM users WHERE id = @id"
+    args = {
+      id = ctx.request.path.id
+    }
+  }
 
-      - type: respond
-        when: steps.find_user.rows_affected == 0
-        status: 404
-        body: problem(404, "User not found")
+  respond {
+    when   = steps.find_user.rows_affected == 0
+    status = 404
+    body   = problem(404, "User not found")
+  }
 
-      - type: respond
-        status: 200
-        body: steps.find_user.row
+  respond {
+    status = 200
+    body   = steps.find_user.row
+  }
+}
 ```
 
 ## Catching unique constraint collisions
 
 Catch database-specific error codes (e.g. PostgreSQL code `23505`) and return a `409 Conflict`:
 
-```yaml
-connections:
-  postgres.main:
-    driver: postgres
-    source: ${DATABASE_URL}
+```hcl
+connection "sql" "primary" {
+  engine = "postgres"
+  source = env("DATABASE_URL")
+}
 
-endpoints:
-  "POST /api/v1/users":
-    request:
-      body:
-        email:
-          type: string
-          required: true
-          format: email
-        full_name:
-          type: string
-          required: true
+schema "User" {
+  field "id" {
+    type = integer
+  }
+  field "email" {
+    type   = string
+    format = "email"
+  }
+  field "full_name" {
+    type = string
+  }
+}
 
-    pipeline:
-      - type: sql
-        name: insert_user
-        connection: postgres.main
-        query: "INSERT INTO users (email, full_name) VALUES (@email, @full_name)"
-        args:
-          email: ctx.request.body.email
-          full_name: ctx.request.body.full_name
-        catches:
-          - code: "23505"
-            status: 409
-            body: problem(409, "A user with this email address already exists")
+route "POST /api/v1/users" {
+  request {
+    body {
+      field "email" {
+        type     = string
+        format   = "email"
+        required = true
+      }
+      field "full_name" {
+        type     = string
+        required = true
+      }
+    }
+  }
 
-      - type: respond
-        status: 201
-        body:
-          email: ctx.request.body.email
-          created_at: now()
+  sql "insert_user" {
+    connection = "primary"
+    query      = "INSERT INTO users (email, full_name) VALUES (@email, @full_name) RETURNING id, email, full_name"
+    args = {
+      email     = ctx.request.body.email
+      full_name = ctx.request.body.full_name
+    }
+
+    catch {
+      code   = "23505"
+      status = 409
+      body   = problem(409, "A user with this email address already exists")
+    }
+  }
+
+  respond {
+    status = 201
+    schema = User
+    body   = steps.insert_user.row
+  }
+}
+```
+
+## Real-time server-sent events (SSE) from Valkey Pub/Sub
+
+Stream live events from Valkey into an open HTTP client connection using `stream "sse"`:
+
+```hcl
+connection "valkey" "broker" {
+  url = env("VALKEY_URL", "redis://127.0.0.1:6379")
+}
+
+route "GET /notifications/stream" {
+  valkey "live_feed" {
+    connection = "broker"
+    op         = "subscribe"
+    channel    = "system.notifications"
+  }
+
+  stream "sse" {
+    source    = steps.live_feed.stream
+    event     = "notification"
+    heartbeat = "15s"
+    retry     = "5s"
+  }
+}
 ```
 
 ## Ad-hoc response mapping with inline request validation
 
-Construct response payloads directly from context coordinates:
+Construct response payloads directly from context coordinates using built-in functions:
 
-```yaml
-endpoints:
-  "POST /api/v1/workspaces/{workspace_id}/members":
-    request:
-      path:
-        workspace_id:
-          type: integer
-          required: true
-      body:
-        email:
-          type: string
-          required: true
-          format: email
+```hcl
+route "POST /api/v1/workspaces/{workspace_id}/members" {
+  request {
+    path "workspace_id" {
+      type     = integer
+      required = true
+    }
+    body {
+      field "email" {
+        type     = string
+        format   = "email"
+        required = true
+      }
+    }
+  }
 
-    pipeline:
-      - type: respond
-        status: 201
-        body:
-          workspace_id: ctx.request.path.workspace_id
-          email: ctx.request.body.email
-          created_at: now()
-          token: uuid()
+  respond {
+    status = 201
+    body = {
+      workspace_id = ctx.request.path.workspace_id
+      email        = ctx.request.body.email
+      created_at   = now()
+      token        = uuid()
+    }
+  }
+}
 ```

@@ -1,115 +1,146 @@
-package engine_test
+package engine
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/ju4n97/hclapi"
-	"github.com/ju4n97/hclapi/internal/problem"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
-// TestEngine_IngressValidation verifies path, query, header, and body constraints and defaults.
-func TestEngine_IngressValidation(t *testing.T) {
+// TestValidateIngress_Coordinates verifies path, query, header, and body schema constraints.
+func TestValidateIngress_Coordinates(t *testing.T) {
 	t.Parallel()
 
-	manifest := `
-server {
-  host = "127.0.0.1"
-  port = 8080
-}
-
-route "POST /accounts/{id}" {
-  request {
-    path "id" {
-      type     = "integer"
-      required = true
-    }
-    header "x-api-key" {
-      type     = "string"
-      format   = "uuid"
-      required = true
-    }
-    query "channel" {
-      type    = "string"
-      default = "web"
-      enum    = ["web", "mobile"]
-    }
-    body {
-      field "email" {
-        type     = "string"
-        format   = "email"
-        required = true
-      }
-      field "username" {
-        type       = "string"
-        min_length = 3
-        required   = true
-      }
-      field "age" {
-        type     = "integer"
-        min      = 18
-        required = true
-      }
-      field "role" {
-        type    = "string"
-        default = "member"
-      }
-    }
-  }
-
-  respond {
-    status = 201
-  }
-}
-`
-
-	cfg, err := hclapi.Parse(manifest)
-	if err != nil {
-		t.Fatalf("failed to parse manifest: %v", err)
+	minLen := 3
+	rules := &manifest.Request{
+		Path: map[string]manifest.Field{
+			"id": {
+				Name:     "id",
+				Type:     manifest.TypeSpec{Type: manifest.TypeInteger},
+				Required: true,
+			},
+		},
+		Query: map[string]manifest.Field{
+			"channel": {
+				Name:    "channel",
+				Type:    manifest.TypeSpec{Type: manifest.TypeString},
+				Default: "web",
+				Enum:    []string{"web", "mobile"},
+			},
+			"tags": {
+				Name: "tags",
+				Type: manifest.TypeSpec{
+					Type:     manifest.TypeArray,
+					ElemType: &manifest.TypeSpec{Type: manifest.TypeString},
+				},
+			},
+		},
+		Headers: map[string]manifest.Field{
+			"x-api-key": {
+				Name:     "x-api-key",
+				Type:     manifest.TypeSpec{Type: manifest.TypeString},
+				Format:   manifest.FormatUUID,
+				Required: true,
+			},
+		},
+		Body: map[string]manifest.Field{
+			"email": {
+				Name:     "email",
+				Type:     manifest.TypeSpec{Type: manifest.TypeString},
+				Format:   manifest.FormatEmail,
+				Required: true,
+			},
+			"username": {
+				Name:      "username",
+				Type:      manifest.TypeSpec{Type: manifest.TypeString},
+				MinLength: &minLen,
+				Required:  true,
+			},
+		},
 	}
-
-	eng, err := hclapi.New(cfg)
-	if err != nil {
-		t.Fatalf("engine init failed: %v", err)
-	}
-	t.Cleanup(func() { _ = eng.Close() })
 
 	tests := []struct {
 		name           string
 		targetURL      string
 		headers        map[string]string
 		bodyJSON       string
-		expectedStatus int
+		wantStatusCode int
+		wantCoercedID  int64
+		wantChannel    string
 	}{
 		{
-			name:      "valid payload passes validation",
-			targetURL: "/accounts/101?channel=mobile",
+			name:      "valid payload passes and coerces types",
+			targetURL: "/accounts/101?channel=mobile&tags=dev&tags=prod",
 			headers: map[string]string{
 				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			},
-			bodyJSON:       `{"email":"dev@example.com","username":"johndoe","age":24}`,
-			expectedStatus: http.StatusCreated,
+			bodyJSON:       `{"email":"alice@example.com","username":"alice"}`,
+			wantStatusCode: 0,
+			wantCoercedID:  101,
+			wantChannel:    "mobile",
 		},
 		{
-			name:      "invalid path parameter returns 422",
+			name:      "invalid path parameter integer returns 422",
 			targetURL: "/accounts/not-an-int",
 			headers: map[string]string{
 				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			},
-			bodyJSON:       `{"email":"dev@example.com","username":"johndoe","age":24}`,
-			expectedStatus: http.StatusUnprocessableEntity,
+			bodyJSON:       `{"email":"alice@example.com","username":"alice"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:      "missing required fields in body returns 422",
+			name:           "missing required header returns 422",
+			targetURL:      "/accounts/101",
+			headers:        map[string]string{},
+			bodyJSON:       `{"email":"alice@example.com","username":"alice"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "invalid header uuid format returns 422",
+			targetURL: "/accounts/101",
+			headers: map[string]string{
+				"X-Api-Key": "invalid-uuid",
+			},
+			bodyJSON:       `{"email":"alice@example.com","username":"alice"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "invalid query enum returns 422",
+			targetURL: "/accounts/101?channel=desktop",
+			headers: map[string]string{
+				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			},
+			bodyJSON:       `{"email":"alice@example.com","username":"alice"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "invalid body email format returns 422",
 			targetURL: "/accounts/101",
 			headers: map[string]string{
 				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			},
-			bodyJSON:       `{"email":"invalid-email"}`,
-			expectedStatus: http.StatusUnprocessableEntity,
+			bodyJSON:       `{"email":"not-an-email","username":"alice"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "body string min_length violation returns 422",
+			targetURL: "/accounts/101",
+			headers: map[string]string{
+				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			},
+			bodyJSON:       `{"email":"alice@example.com","username":"a"}`,
+			wantStatusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "malformed body JSON returns 400 Bad Request",
+			targetURL: "/accounts/101",
+			headers: map[string]string{
+				"X-Api-Key": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			},
+			bodyJSON:       `{"email":`,
+			wantStatusCode: http.StatusBadRequest,
 		},
 	}
 
@@ -122,294 +153,108 @@ route "POST /accounts/{id}" {
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
+
 			rec := httptest.NewRecorder()
+			ctx, err := NewContext(req, rec, "POST /accounts/{id}", 1024, Dependencies{})
+			if err != nil {
+				t.Fatalf("NewContext() unexpected error: %v", err)
+			}
 
-			eng.ServeHTTP(rec, req)
+			prob := ValidateIngress(ctx, rules, nil)
 
-			if rec.Code != tt.expectedStatus {
-				t.Errorf("status = %d; want %d", rec.Code, tt.expectedStatus)
+			if tt.wantStatusCode == 0 {
+				if prob != nil {
+					t.Fatalf("unexpected validation problem: %+v", prob)
+				}
+				if gotID := ctx.pathParams["id"]; gotID != tt.wantCoercedID {
+					t.Errorf("coerced path id = %v, want %d", gotID, tt.wantCoercedID)
+				}
+				if gotChan := ctx.queryParams["channel"]; gotChan != tt.wantChannel {
+					t.Errorf("query channel = %v, want %q", gotChan, tt.wantChannel)
+				}
+				return
+			}
+
+			if prob == nil {
+				t.Fatalf("expected validation problem with status %d, got nil", tt.wantStatusCode)
+			}
+			if prob.Status != tt.wantStatusCode {
+				t.Errorf("problem status = %d, want %d", prob.Status, tt.wantStatusCode)
 			}
 		})
 	}
 }
 
-// TestEngine_Validate_StrictTypesAndMalformedJSON verifies 400 on malformed JSON and 422 on type mismatches.
-func TestEngine_Validate_StrictTypesAndMalformedJSON(t *testing.T) {
+// TestValidateIngress_DeepNestedSchemas verifies recursive validation across schema references.
+func TestValidateIngress_DeepNestedSchemas(t *testing.T) {
 	t.Parallel()
 
-	manifest := `
-server {
-  host = "127.0.0.1"
-  port = 8080
-}
-
-route "POST /validate-types" {
-  request {
-    body {
-      field "name" {
-        type     = "string"
-        required = true
-      }
-    }
-  }
-
-  respond {
-    status = 200
-  }
-}
-`
-
-	cfg, err := hclapi.Parse(manifest)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
+	schemas := map[string]manifest.Schema{
+		"Address": {
+			Name: "Address",
+			Fields: map[string]manifest.Field{
+				"street": {
+					Name:     "street",
+					Type:     manifest.TypeSpec{Type: manifest.TypeString},
+					Required: true,
+				},
+				"zip": {
+					Name:     "zip",
+					Type:     manifest.TypeSpec{Type: manifest.TypeInteger},
+					Required: true,
+				},
+			},
+		},
+		"Profile": {
+			Name: "Profile",
+			Fields: map[string]manifest.Field{
+				"address": {
+					Name:     "address",
+					Type:     manifest.TypeSpec{Type: manifest.TypeObject, SchemaRef: "Address"},
+					Required: true,
+				},
+			},
+		},
 	}
 
-	eng, err := hclapi.New(cfg)
-	if err != nil {
-		t.Fatalf("engine init failed: %v", err)
+	rules := &manifest.Request{
+		BodyRef: "Profile",
 	}
-	t.Cleanup(func() { _ = eng.Close() })
 
-	t.Run("fails 422 when integer is passed to string field", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/validate-types", strings.NewReader(`{"name": 12345}`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
+	t.Run("valid deep nested payload passes", func(t *testing.T) {
+		t.Parallel()
 
-		eng.ServeHTTP(rec, req)
+		body := `{"address":{"street":"Main St","zip":12345}}`
+		req := httptest.NewRequest(http.MethodPost, "/profiles", strings.NewReader(body))
+		ctx, err := NewContext(req, httptest.NewRecorder(), "POST /profiles", 1024, Dependencies{})
+		if err != nil {
+			t.Fatalf("NewContext() error: %v", err)
+		}
 
-		if rec.Code != http.StatusUnprocessableEntity {
-			t.Errorf("status = %d; want 422 Unprocessable Entity", rec.Code)
+		prob := ValidateIngress(ctx, rules, schemas)
+		if prob != nil {
+			t.Fatalf("unexpected validation problem: %+v", prob)
 		}
 	})
 
-	t.Run("fails 400 when body contains malformed JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/validate-types", strings.NewReader(`{"name":`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
+	t.Run("nested required field missing returns 422 with exact path", func(t *testing.T) {
+		t.Parallel()
 
-		eng.ServeHTTP(rec, req)
+		body := `{"address":{"street":"Main St"}}`
+		req := httptest.NewRequest(http.MethodPost, "/profiles", strings.NewReader(body))
+		ctx, err := NewContext(req, httptest.NewRecorder(), "POST /profiles", 1024, Dependencies{})
+		if err != nil {
+			t.Fatalf("NewContext() error: %v", err)
+		}
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("status = %d; want 400 Bad Request", rec.Code)
+		prob := ValidateIngress(ctx, rules, schemas)
+		if prob == nil || prob.Status != http.StatusUnprocessableEntity {
+			t.Fatalf("expected 422 problem, got %+v", prob)
+		}
+
+		expectedPath := "body.address.zip"
+		if len(prob.InvalidParams) != 1 || prob.InvalidParams[0].Name != expectedPath {
+			t.Fatalf("invalid params = %+v, want name %q", prob.InvalidParams, expectedPath)
 		}
 	})
-}
-
-// TestEngine_Validate_PathAndQueryCoercion verifies that path and query inputs are typed in HCL.
-func TestEngine_Validate_PathAndQueryCoercion(t *testing.T) {
-	t.Parallel()
-
-	manifest := `
-server {
-  host = "127.0.0.1"
-  port = 8080
-}
-
-route "GET /items/{id}" {
-  request {
-    path "id" {
-      type     = "integer"
-      required = true
-    }
-    query "limit" {
-      type    = "integer"
-      default = 25
-    }
-  }
-
-  respond {
-    when   = ctx.request.path.id == 42 && ctx.request.query.limit == 25
-    status = 200
-    body   = {"matched": true}
-  }
-
-  respond {
-    status = 400
-    body   = {"matched": false}
-  }
-}
-`
-
-	cfg, err := hclapi.Parse(manifest)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
-	}
-
-	eng, err := hclapi.New(cfg)
-	if err != nil {
-		t.Fatalf("engine init failed: %v", err)
-	}
-	t.Cleanup(func() { _ = eng.Close() })
-
-	req := httptest.NewRequest(http.MethodGet, "/items/42", http.NoBody)
-	rec := httptest.NewRecorder()
-
-	eng.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d; want 200 OK (conditional failed)", rec.Code)
-	}
-}
-
-// TestEngine_Validate_MaxBodySizeBoundary verifies rejection of oversized payloads with 413.
-func TestEngine_Validate_MaxBodySizeBoundary(t *testing.T) {
-	t.Parallel()
-
-	manifest := `
-server {
-  host          = "127.0.0.1"
-  port          = 8080
-  max_body_size = "1KB"
-}
-
-route "POST /upload" {
-  respond {
-    status = 200
-  }
-}
-`
-
-	cfg, err := hclapi.Parse(manifest)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
-	}
-
-	eng, err := hclapi.New(cfg)
-	if err != nil {
-		t.Fatalf("engine init failed: %v", err)
-	}
-	t.Cleanup(func() { _ = eng.Close() })
-
-	t.Run("accepts payload within limit", func(t *testing.T) {
-		payload := strings.Repeat("a", 500)
-		req := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(payload))
-		rec := httptest.NewRecorder()
-
-		eng.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Errorf("status = %d; want 200", rec.Code)
-		}
-	})
-
-	t.Run("rejects payload exceeding limit with 413", func(t *testing.T) {
-		payload := strings.Repeat("a", 1500)
-		req := httptest.NewRequest(http.MethodPost, "/upload", strings.NewReader(payload))
-		rec := httptest.NewRecorder()
-
-		eng.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusRequestEntityTooLarge {
-			t.Errorf("status = %d; want 413", rec.Code)
-		}
-
-		var p problem.Problem
-		_ = json.NewDecoder(rec.Body).Decode(&p)
-		if p.Status != 413 {
-			t.Errorf("problem status = %d; want 413", p.Status)
-		}
-	})
-}
-
-// TestEngine_Validate_DeepNestedSchemaValidation verifies that invalid types in deep nested schemas
-// return 422 Unprocessable Entity with exact parameter paths.
-func TestEngine_Validate_DeepNestedSchemaValidation(t *testing.T) {
-	t.Parallel()
-
-	manifest := `
-server {
-  host = "127.0.0.1"
-  port = 8080
-}
-
-schema "DocumentLink" {
-  field "id" {
-    type     = "integer"
-    required = true
-  }
-  field "download_url" {
-    type   = "string"
-    format = "uri"
-  }
-}
-
-schema "Study" {
-  field "id" {
-    type     = "integer"
-    required = true
-  }
-  field "carpals" {
-    type = "[]DocumentLink"
-  }
-}
-
-schema "WebhookPayload" {
-  field "data" {
-    type     = "Study"
-    required = true
-  }
-}
-
-route "POST /webhook" {
-  request {
-    body = WebhookPayload
-  }
-
-  respond {
-    status = 200
-  }
-}
-`
-
-	cfg, err := hclapi.Parse(manifest)
-	if err != nil {
-		t.Fatalf("parse failed: %v", err)
-	}
-
-	eng, err := hclapi.New(cfg)
-	if err != nil {
-		t.Fatalf("engine init failed: %v", err)
-	}
-	t.Cleanup(func() { _ = eng.Close() })
-
-	// Send a payload where carpals[0].download_url is a number instead of a string
-	badPayload := `{
-		"data": {
-			"id": 100,
-			"carpals": [
-				{
-					"id": 1,
-					"download_url": 0
-				}
-			]
-		}
-	}`
-
-	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(badPayload))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	eng.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d; want 422 Unprocessable Entity. Body: %s", rec.Code, rec.Body.String())
-	}
-
-	var p problem.Problem
-	if err := json.NewDecoder(rec.Body).Decode(&p); err != nil {
-		t.Fatalf("failed to decode problem JSON: %v", err)
-	}
-
-	if len(p.InvalidParams) != 1 {
-		t.Fatalf("expected 1 invalid param, got %d: %+v", len(p.InvalidParams), p.InvalidParams)
-	}
-
-	ip := p.InvalidParams[0]
-	expectedName := "body.data.carpals[0].download_url"
-	if ip.Name != expectedName {
-		t.Errorf("invalid param name = %q; want %q", ip.Name, expectedName)
-	}
-	if ip.Reason != "must be a string" {
-		t.Errorf("invalid param reason = %q; want 'must be a string'", ip.Reason)
-	}
 }

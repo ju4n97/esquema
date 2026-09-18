@@ -37,6 +37,16 @@ hclapi is not an all-purpose web framework. Use traditional application code whe
 
 - Background worker loops or message bus consumers (Kafka, RabbitMQ).
 - Long-lived stateful connections (WebSockets, gRPC bidirectional streams).
-- Complex multi-step database schema migrations (use dedicated tools like `flyway` or `golang-migrate`).
+- Complex multi-step database schema migrations.
 
-A `step "go"` block is available when an endpoint requires third-party SDK calls or very customized logic.
+A native `go` step is available when an endpoint requires custom Go callbacks, proprietary algorithms, or third-party SDK calls:
+
+```hcl
+go "charge_card" {
+  use = "stripe.charge"
+  args = {
+    amount   = ctx.request.body.amount
+    currency = "usd"
+  }
+}
+```

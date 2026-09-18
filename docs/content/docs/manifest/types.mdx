@@ -1,6 +1,6 @@
 ---
 title: Types and schema constraints
-description: OpenAPI 3.1 primitive types, semantic formats, and configuration units.
+description: OpenAPI 3.1 primitive types, collection syntax, semantic formats, and configuration units.
 ---
 
 # Types and schema constraints
@@ -9,20 +9,20 @@ hclapi maps its type system directly to OpenAPI 3.1 specifications.
 
 ## Schema data types
 
-Used inside `schema` and `request` field blocks:
+Used inside `schema` and `request` field blocks as unquoted identifiers:
 
-| Type          | JSON type | Description                                         |
-| :------------ | :-------- | :-------------------------------------------------- |
-| **`string`**  | `string`  | Text strings, supporting formats and length bounds  |
-| **`integer`** | `integer` | Whole numbers only                                  |
-| **`number`**  | `number`  | Any numeric value, including floating point numbers |
-| **`boolean`** | `boolean` | `true` or `false`                                   |
-| **`array`**   | `array`   | A sequence of items                                 |
-| **`object`**  | `object`  | An unordered map of key-value pairs                 |
+| Type          | Example             | Description                                        |
+| :------------ | :------------------ | :------------------------------------------------- |
+| **`string`**  | `type = string`     | Text strings, supporting formats and length bounds |
+| **`integer`** | `type = integer`    | Whole numbers only (coerced to `int64`)            |
+| **`number`**  | `type = number`     | Any numeric value (coerced to `float64`)           |
+| **`boolean`** | `type = boolean`    | `true` or `false` (coerced to `bool`)              |
+| **`object`**  | `type = object`     | Generic map or named schema model reference        |
+| **`list(T)`** | `type = list(User)` | Sequence of elements of type `T`                   |
 
 ## Built-in format constraints
 
-Formats provide semantic checks for `string` types:
+Formats provide semantic validation for `string` types:
 
 | Format        | Description                       | Example                                  |
 | :------------ | :-------------------------------- | :--------------------------------------- |
@@ -39,22 +39,23 @@ Formats provide semantic checks for `string` types:
 
 ### Duration
 
-Parsed via Go's `time.ParseDuration`. Units can be combined:
+Parsed into `time.Duration`. Units can be combined:
 
-| Suffix | Unit         | Example |
-| :----- | :----------- | :------ |
-| `ms`   | Milliseconds | `500ms` |
-| `s`    | Seconds      | `30s`   |
-| `m`    | Minutes      | `15m`   |
-| `h`    | Hours        | `1h`    |
+| Suffix | Unit         | Example   |
+| :----- | :----------- | :-------- |
+| `ms`   | Milliseconds | `"500ms"` |
+| `s`    | Seconds      | `"30s"`   |
+| `m`    | Minutes      | `"15m"`   |
+| `h`    | Hours        | `"1h"`    |
 
 ### ByteSize
 
 Parsed into an `int64` byte count supporting decimal and binary units:
 
-| Suffix      | Unit                 | Equivalent bytes                  |
-| :---------- | :------------------- | :-------------------------------- |
-| `B`         | Bytes                | `1`                               |
-| `KB`, `KiB` | Kilobytes, Kibibytes | `1,000` / `1,024`                 |
-| `MB`, `MiB` | Megabytes, Mebibytes | `1,000,000` / `1,048,576`         |
-| `GB`, `GiB` | Gigabytes, Gibibytes | `1,000,000,000` / `1,073,741,824` |
+| Suffix      | Unit                 | Equivalent bytes                          |
+| :---------- | :------------------- | :---------------------------------------- |
+| `B`         | Bytes                | `1`                                       |
+| `KB`, `KiB` | Kilobytes, Kibibytes | `1,000` / `1,024`                         |
+| `MB`, `MiB` | Megabytes, Mebibytes | `1,000,000` / `1,048,576`                 |
+| `GB`, `GiB` | Gigabytes, Gibibytes | `1,000,000,000` / `1,073,741,824`         |
+| `TB`, `TiB` | Terabytes, Tebibytes | `1,000,000,000,000` / `1,099,511,627,776` |

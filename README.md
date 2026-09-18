@@ -1,16 +1,16 @@
 # hclapi
 
 [![Go Reference](https://img.shields.io/badge/Go_Reference-pkg.go.dev-007D9C?style=flat-square)](https://pkg.go.dev/github.com/ju4n97/hclapi)
-[![Release](https://img.shields.io/github/v/release/ju4n97/hclapi?style=flat-square\&label=Release)](https://github.com/ju4n97/hclapi/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/ju4n97/hclapi/ci.yaml?style=flat-square\&label=CI)](https://github.com/ju4n97/hclapi/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/ju4n97/hclapi?style=flat-square&label=Release)](https://github.com/ju4n97/hclapi/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/ju4n97/hclapi/ci.yaml?style=flat-square&label=CI)](https://github.com/ju4n97/hclapi/actions/workflows/ci.yaml)
 
-hclapi is a declarative API runtime powered by HCL.
+hclapi is a lightweight, declarative API runtime powered by HashiCorp HCL.
 
-Define HTTP routes, validation, SQL, Valkey, Starlark, Go callbacks, and OpenAPI documentation without generating application code.
+Define HTTP endpoints, input validation schemas, database queries, caching, sandboxed data transformations, real-time streams, and OpenAPI 3.1 specifications in human-readable manifests without writing boilerplate backend routing code.
 
-Manifests are loaded, validated, and compiled at startup, then executed directly at request time.
+Manifests are verified and precompiled at startup, then executed sequentially at request time.
 
-[Documentation](https://ju4n97.github.io/hclapi/) · [Examples](./examples)
+[Documentation](https://ju4n97.github.io/hclapi/) · [Quickstart](https://ju4n97.github.io/hclapi/docs/quickstart) · [Examples](./examples)
 
 ## Example
 
@@ -29,19 +29,19 @@ route "POST /users" {
   request {
     body {
       field "email" {
-        type     = "string"
+        type     = string
         format   = "email"
         required = true
       }
 
       field "name" {
-        type     = "string"
+        type     = string
         required = true
       }
     }
   }
 
-  step "sql" "create" {
+  sql "create" {
     connection = "main"
 
     query = <<-SQL
@@ -54,6 +54,12 @@ route "POST /users" {
       email = ctx.request.body.email
       name  = ctx.request.body.name
     }
+
+    catch {
+      code   = "23505"
+      status = 409
+      body   = problem(409, "Email is already registered")
+    }
   }
 
   respond {
@@ -63,38 +69,51 @@ route "POST /users" {
 }
 ```
 
-## Go
+## Go integration
 
-hclapi is also embeddable:
+hclapi is also distributed as an embeddable Go library:
 
 ```go
-config, err := hclapi.Load("routes/*.hcl")
-if err != nil {
-    log.Fatal(err)
-}
+package main
 
-engine, err := hclapi.New(config)
-if err != nil {
-    log.Fatal(err)
-}
-defer engine.Close()
+import (
+ "log"
+ "net/http"
 
-http.ListenAndServe(":8080", engine)
+ "github.com/ju4n97/hclapi"
+)
+
+func main() {
+  manifest, err := hclapi.Load("routes/*.hcl")
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  app, err := hclapi.New(manifest)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer app.Close()
+
+  http.ListenAndServe(":8080", app)
+}
 ```
 
-Custom Go behavior can be registered with `hclapi.WithStep`. More information available in the [Go integration guide](https://ju4n97.github.io/hclapi/guides/go).
+Custom Go behavior can be registered with `hclapi.WithStep`. See the [Go integration guide](https://ju4n97.github.io/hclapi/guides/go) for details.
 
 ## Install
+
+Install the standalone CLI daemon via `go install`:
 
 ```bash
 go install github.com/ju4n97/hclapi/cmd/hclapi@latest
 ```
 
-Or use the release binaries and container images documented in the [installation guide](https://ju4n97.github.io/hclapi/installation).
+Or use precompiled binary archives, Linux packages (`.deb`, `.rpm`, `.apk`, `.pkg.tar.zst`), and container images documented in the [installation guide](https://ju4n97.github.io/hclapi/docs/installation).
 
 ## Documentation
 
-See [hclapi documentation](https://ju4n97.github.io/hclapi/).
+See the full [hclapi documentation](https://ju4n97.github.io/hclapi/).
 
 ## Contributing
 

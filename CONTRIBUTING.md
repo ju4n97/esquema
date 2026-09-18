@@ -4,35 +4,53 @@ It's recommended that you read the [documentation](https://ju4n97.github.io/hcla
 
 ## Development
 
-Tasks are available in the [Taskfile](Taskfile.yaml).
+Tasks are available in the [Taskfile](Taskfile.yaml):
+
+- `task test`: Run unit test suite
+- `task lint`: Run linters and static checks
+- `task build`: Compile the CLI binary
 
 ## Testing
 
 Prefer tests that exercise behavior through the public API:
 
 ```go
-cfg, err := hclapi.Parse(manifest)
+hclContent := `
+server {
+  host = "127.0.0.1"
+  port = 8080
+}
+
+route "GET /users" {
+  respond {
+    status = 200
+    body   = { ok = true }
+  }
+}
+`
+
+m, err := hclapi.Parse(hclContent)
 if err != nil {
     t.Fatal(err)
 }
 
-api, err := hclapi.New(cfg)
+app, err := hclapi.New(m)
 if err != nil {
     t.Fatal(err)
 }
-defer api.Close()
+t.Cleanup(func() { _ = app.Close() })
 
-req := httptest.NewRequest(http.MethodGet, "/users", nil)
+req := httptest.NewRequest(http.MethodGet, "/users", http.NoBody)
 rec := httptest.NewRecorder()
 
-api.ServeHTTP(rec, req)
+app.ServeHTTP(rec, req)
 
 if rec.Code != http.StatusOK {
     t.Fatalf("status = %d; want %d", rec.Code, http.StatusOK)
 }
 ```
 
-Use `httptest` for HTTP behavior and the [integration suite](test/integration/) for testing real external dependencies.
+Use `httptest` for HTTP behavior. Integration tests with external dependencies (e.g. Valkey, PostgreSQL) are co-located using the `integration` build tag (`//go:build integration`) and run via Testcontainers.
 
 ## Code
 
@@ -52,7 +70,7 @@ Commit messages use Conventional Commits with the purpose of automated changelog
 ```text
 feat(engine): add HTTP step
 fix(manifest): reject duplicate routes
-test(validator): cover invalid query parameters
+test(engine): cover invalid query parameters
 chore: update dependencies
 ```
 

@@ -1,11 +1,11 @@
 ---
 title: docs
-description: Serve interactive API documentation portals.
+description: Serve interactive API documentation portals directly from the runtime.
 ---
 
 # docs
 
-The `docs` step renders an interactive API documentation portal directly from the compiled OpenAPI 3.1 specification.
+The `docs` step renders an interactive API documentation portal directly from the compiled OpenAPI 3.1 specification. It is a terminal step that completes the request pipeline.
 
 ```hcl
 route "GET /docs" {
@@ -22,7 +22,7 @@ route "GET /docs" {
 | :--------- | :------- | :---------------- | :------------------------------------------------------------- |
 | `renderer` | `string` | `"scalar"`        | UI viewer: `"scalar"`, `"swagger"`, `"redoc"`, or `"elements"` |
 | `spec_url` | `string` | `"/openapi.json"` | Path to the OpenAPI JSON or YAML endpoint                      |
-| `title`    | `string` | configured title  | Custom portal title                                            |
-| `template` | `string` | `""`              | Path to a custom HTML template file                            |
+| `title`    | `string` | configured title  | Custom portal page title                                       |
+| `template` | `string` | `""`              | Path to a custom HTML template file on disk                    |
 
-Routes using `docs` are automatically excluded from the generated OpenAPI specification catalog so documentation endpoints won't pollute your API contracts.
+Routes using `docs` are automatically excluded from the generated OpenAPI specification catalog so documentation viewers won't pollute your API contracts.

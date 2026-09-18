@@ -1,21 +1,21 @@
 ---
 title: Pipelines and steps
-description: Step sequencing, conditional branching, and early termination.
+description: Step sequencing, conditional branching, early termination, and streaming.
 ---
 
 # Pipelines and steps
 
-A pipeline is an ordered list of steps declared inside a `route` block. Each step runs a distinct task: querying a database, making an outbound HTTP request, reading from cache, transforming data with Starlark, running Go code, or streaming a response.
+A pipeline is an ordered sequence of steps declared inside a `route` block. Each step executes an isolated task: querying a database, making an outbound HTTP request, reading from cache, transforming data with Starlark, executing native Go code, or streaming a response.
 
 ```hcl
 route "GET /products/{id}" {
-  step "valkey" "cache" {
+  valkey "cache" {
     connection = "redis"
     op         = "get"
     key        = "product:${ctx.request.path.id}"
   }
 
-  step "sql" "db" {
+  sql "db" {
     when       = !steps.cache.found
     connection = "main"
     query      = "SELECT id, title, price FROM products WHERE id = @id"
@@ -37,20 +37,49 @@ route "GET /products/{id}" {
 
 ## Step execution rules
 
-1. **Exact lexical ordering**: Steps execute in the exact order they're declared in the manifest file.
-2. **Immutable prior history**: Steps can read outputs from earlier steps, but they can't mutate outputs produced by prior steps or change incoming request values.
-3. **Fail fast on error**: If a step encounters an unhandled error, pipeline execution stops right away and returns an HTTP 500 Problem Details response.
-4. **Early termination**: A `respond` step whose `when` condition evaluates to `true` (or one without a condition) terminates the pipeline immediately. Subsequent steps won't run.
+1. **Exact lexical ordering**: Steps execute in the exact sequential order declared in the manifest.
+2. **Immutable prior history**: Steps can read outputs from earlier steps, but cannot mutate outputs produced by prior steps or modify incoming request coordinates.
+3. **Fail-fast on unhandled error**: If a step encounters an unhandled error, execution halts and returns an RFC 9457 HTTP 500 Problem Details response.
+4. **Early termination by terminal steps**: Terminal steps (`respond`, `stream`, `docs`, `spec`) complete the pipeline and send the response. Subsequent steps are not executed.
+5. **Context cancellation & timeouts**: Before each step runs, the engine checks `req.Context().Err()`. If the client disconnects or times out, the pipeline halts immediately with HTTP 504 Gateway Timeout.
 
 ## Supported step types
 
-| Step type                          | Purpose                                  | Exported outputs               |
-| :--------------------------------- | :--------------------------------------- | :----------------------------- |
-| [`sql`](/docs/steps/sql)           | Run prepared database statements         | `row`, `rows`, `rows_affected` |
-| [`http`](/docs/steps/http)         | Make outbound HTTP requests              | `status`, `body`               |
-| [`valkey`](/docs/steps/valkey)     | Key-value caching operations             | `found`, `value`, `success`    |
-| [`starlark`](/docs/steps/starlark) | Run sandboxed Python-like scripts        | `result`                       |
-| [`go`](/docs/steps/go)             | Invoke native Go handlers                | `result`                       |
-| [`respond`](/docs/steps/respond)   | Terminate and stream HTTP response       | None, terminates execution     |
-| [`docs`](/docs/steps/docs)         | Render interactive documentation portals | None, terminates execution     |
-| [`spec`](/docs/steps/spec)         | Serve OpenAPI 3.1 specifications         | None, terminates execution     |
+| Step keyword                       | Type         | Description                                                     |
+| :--------------------------------- | :----------- | :-------------------------------------------------------------- |
+| [`sql`](/docs/steps/sql)           | Intermediate | Run prepared relational database queries with `@param` binding  |
+| [`http`](/docs/steps/http)         | Intermediate | Make outbound HTTP requests with deadlines and trace injection  |
+| [`valkey`](/docs/steps/valkey)     | Intermediate | Key-value cache operations (`get`, `set`, `del`) and Pub/Sub    |
+| [`starlark`](/docs/steps/starlark) | Intermediate | Run sandboxed Python-like scripts with instruction bounds       |
+| [`go`](/docs/steps/go)             | Intermediate | Execute native Go callbacks with panic boundary isolation       |
+| [`respond`](/docs/steps/respond)   | Terminal     | Serialize JSON or raw bodies and apply schema egress masking    |
+| [`stream`](/docs/steps/stream)     | Terminal     | Stream live Server-Sent Events, NDJSON, CSV, or raw bytes       |
+| [`docs`](/docs/steps/docs)         | Terminal     | Render interactive documentation portals (Scalar, Swagger, etc) |
+| [`spec`](/docs/steps/spec)         | Terminal     | Serve OpenAPI 3.1 specifications with SHA-256 ETag validation   |
+
+## Terminal step requirements
+
+Every route must declare at least one terminal step. Manifest validation rejects any route that cannot produce an HTTP response at boot time:
+
+```hcl
+# INVALID: Manifest integrity check fails at boot
+route "GET /broken" {
+  sql "fetch" {
+    connection = "main"
+    query      = "SELECT 1"
+  }
+}
+
+# VALID: Route concludes with a terminal respond step
+route "GET /valid" {
+  sql "fetch" {
+    connection = "main"
+    query      = "SELECT 1"
+  }
+
+  respond {
+    status = 200
+    body   = steps.fetch.row
+  }
+}
+```

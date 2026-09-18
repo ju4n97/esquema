@@ -21,13 +21,13 @@ route "GET /api/v1/sky/mars-age/{earth_years}" {
 
   request {
     path "earth_years" {
-      type        = "number"
+      type        = number
       required    = true
       description = "Age in Earth years"
     }
   }
 
-  step "go" "convert" {
+  go "convert" {
     use = "astronomy.mars_age"
     args = {
       earth_years = ctx.request.path.earth_years

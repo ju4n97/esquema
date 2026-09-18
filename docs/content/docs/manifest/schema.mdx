@@ -1,0 +1,56 @@
+---
+title: schema
+description: Reusable data models, validation constraints, and response filters.
+---
+
+# schema
+
+The `schema` block defines reusable data models used for validating incoming request bodies and masking outbound responses.
+
+```hcl
+schema "User" {
+  description = "Application user profile"
+
+  field "id" {
+    type     = integer
+    required = true
+  }
+
+  field "email" {
+    type     = string
+    format   = "email"
+    required = true
+  }
+
+  field "tags" {
+    type = list(string)
+  }
+
+  field "role" {
+    type    = string
+    default = "member"
+    enum    = ["admin", "member", "viewer"]
+  }
+
+  field "age" {
+    type = integer
+    min  = 18
+    max  = 120
+  }
+}
+```
+
+## Field constraints
+
+| Attribute     | Type       | Applicable types    | Description                                                   |
+| :------------ | :--------- | :------------------ | :------------------------------------------------------------ |
+| `type`        | identifier | all                 | `string`, `integer`, `number`, `boolean`, `object`, `list(T)` |
+| `format`      | `string`   | `string`            | Built-in semantic format constraint check                     |
+| `required`    | `bool`     | all                 | Returns HTTP 422 if missing or null                           |
+| `default`     | `any`      | all                 | Fallback value injected if key is absent                      |
+| `description` | `string`   | all                 | Field summary exported to OpenAPI documentation               |
+| `min`         | `number`   | `integer`, `number` | Minimum numeric value, inclusive                              |
+| `max`         | `number`   | `integer`, `number` | Maximum numeric value, inclusive                              |
+| `min_length`  | `int`      | `string`, `array`   | Minimum string character length or array item count           |
+| `max_length`  | `int`      | `string`, `array`   | Maximum string character length or array item count           |
+| `enum`        | `list`     | `string`            | Whitelist of permitted string values                          |

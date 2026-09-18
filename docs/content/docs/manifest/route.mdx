@@ -1,0 +1,98 @@
+---
+title: route
+description: Route patterns, ingress coordinates, and pipeline steps.
+---
+
+# route
+
+The `route` block binds an HTTP method and path pattern to an execution pipeline.
+
+```hcl
+route "POST /accounts/{id}" {
+  summary = "Update account"
+  tag     = "accounts"
+
+  request {
+    path "id" {
+      type     = integer
+      required = true
+    }
+
+    header "x-api-key" {
+      type     = string
+      format   = "uuid"
+      required = true
+    }
+
+    query "channel" {
+      type    = string
+      default = "web"
+      enum    = ["web", "mobile"]
+    }
+
+    body {
+      field "name" {
+        type       = string
+        min_length = 2
+        required   = true
+      }
+    }
+  }
+
+  sql "update" {
+    connection = "main"
+    query      = "UPDATE accounts SET name = @name WHERE id = @id"
+    args = {
+      id   = ctx.request.path.id
+      name = ctx.request.body.name
+    }
+  }
+
+  respond {
+    status = 200
+    body = {
+      updated = true
+      id      = ctx.request.path.id
+    }
+  }
+}
+```
+
+## Request validation
+
+The `request` block validates parameters across four coordinates: `path`, `query`, `header`, and `body`.
+
+### Automatic parameter coercion
+
+Path and query inputs start as raw text, but hclapi coerces them into native Go types as soon as validation passes:
+
+- `type = integer`: Coerced to native `int64`.
+- `type = number`: Coerced to native `float64`.
+- `type = boolean`: Coerced to native `bool`.
+
+Downstream SQL steps receive typed numbers rather than strings, avoiding type mismatch errors on strict databases like PostgreSQL.
+
+### Using reusable schemas
+
+Reference a declared schema directly on the body:
+
+```hcl
+route "POST /users" {
+  request {
+    body = User
+  }
+
+  sql "insert" {
+    connection = "main"
+    query      = "INSERT INTO users (email) VALUES (@email)"
+    args = {
+      email = ctx.request.body.email
+    }
+  }
+
+  respond {
+    status = 201
+    body   = ctx.request.body
+  }
+}
+```

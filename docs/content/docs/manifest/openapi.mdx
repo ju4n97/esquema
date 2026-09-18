@@ -11,22 +11,33 @@ The `openapi` block configures global document metadata exported into your OpenA
 openapi {
   title       = "Storefront API"
   version     = "1.2.0"
-  description = "Customer and order management services"
+  description = "Customer account and order management services"
 
-  server {
-    url         = "https://api.example.com/v1"
-    description = "Production cluster"
-  }
+  servers = [
+    {
+      url         = "https://api.example.com/v1"
+      description = "Production cluster"
+    },
+    {
+      url         = "https://staging.api.example.com/v1"
+      description = "Staging cluster"
+    }
+  ]
 
-  tag {
-    name        = "users"
-    description = "User accounts and permissions"
-  }
+  tags = [
+    {
+      name        = "users"
+      description = "User accounts and permissions"
+    },
+    {
+      name        = "orders"
+      description = "Cart updates and checkout"
+    }
+  ]
 
   contact {
     name  = "API Support"
     email = "support@example.com"
-    url   = "https://example.com/support"
   }
 
   license {
@@ -38,11 +49,13 @@ openapi {
 
 ## Top level attributes
 
-| Attribute     | Type     | Default               | Description                                         |
-| :------------ | :------- | :-------------------- | :-------------------------------------------------- |
-| `title`       | `string` | `"API Documentation"` | Document title in `info.title`                      |
-| `version`     | `string` | `"1.0.0"`             | API semantic version in `info.version`              |
-| `description` | `string` | `""`                  | Markdown description exported to `info.description` |
+| Attribute   | Type         | Default             | Description                                                         |
+| :---------- | :----------- | :------------------ | :------------------------------------------------------------------ |
+| title       | string       | "API Documentation" | Document title in info.title                                        |
+| version     | string       | "1.0.0"             | API semantic version in info.version                                |
+| description | string       | ""                  | Markdown description exported to info.description                   |
+| servers     | list(object) | `[{ url = "/" }]`   | List of target deployment servers with url and optional description |
+| tags        | list(object) | `[]`                | List of API tags with name and optional description                 |
 
 ## Nested blocks
 

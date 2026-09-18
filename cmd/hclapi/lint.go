@@ -11,6 +11,7 @@ import (
 )
 
 // newLintCommand validates and type-checks manifests without booting listeners or pools.
+
 func newLintCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "lint",
@@ -27,13 +28,13 @@ func newLintCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			patterns := resolvePatterns(cmd)
 
-			cfg, err := hclapi.Load(patterns...)
+			m, err := hclapi.Load(patterns...)
 			if err != nil {
 				return fmt.Errorf("validation error:\n%w", err)
 			}
 
-			fmt.Fprintf(os.Stdout, "✓ Manifests are valid (%d endpoints, %d connections compiled)\n",
-				len(cfg.Endpoints), len(cfg.Connections))
+			fmt.Fprintf(os.Stdout, "✓ Manifests are valid (%d routes, %d connections, %d schemas compiled)\n",
+				len(m.Routes), len(m.Connections), len(m.Schemas))
 			return nil
 		},
 	}

@@ -1,0 +1,56 @@
+---
+title: connection
+description: Relational database pools and Valkey cache instances.
+---
+
+# connection
+
+The `connection` block declares external pools for relational databases and key-value stores.
+
+## SQL connections
+
+hclapi uses canonical SQL engine names:
+
+```hcl
+connection "sql" "main" {
+  engine = "postgres"
+  source = "postgres://user:pass@localhost:5432/app?sslmode=disable"
+  pool {
+    max_open = 25
+    max_idle = 25
+  }
+}
+```
+
+### Supported engines
+
+| Engine          | Dialect placeholder | Go driver package    |
+| :-------------- | :-----------------: | :------------------- |
+| **`postgres`**  |      `@param`       | `pgx/v5`             |
+| **`mysql`**     |      `@param`       | `go-sql-driver`      |
+| **`sqlite`**    |      `@param`       | `modernc.org/sqlite` |
+| **`sqlserver`** |      `@param`       | `go-mssqldb`         |
+
+Non-canonical engine names (like `postgresql`, `sqlite3`, `mariadb`, or `mssql`) are rejected at compile time so manifests remain consistent.
+
+### Pool settings
+
+| Attribute  | Type  | Default | Description                                  |
+| :--------- | :---- | :------ | :------------------------------------------- |
+| `max_open` | `int` | `25`    | Maximum active open connections in the pool  |
+| `max_idle` | `int` | `25`    | Maximum idle connections waiting in the pool |
+
+Idle connections are recycled after 5 minutes, and connection lifetime is bounded to 15 minutes.
+
+## Valkey and Redis connections
+
+```hcl
+connection "valkey" "cache" {
+  url = "redis://127.0.0.1:6379/0"
+}
+```
+
+| Attribute | Type     | Required | Description                                                    |
+| :-------- | :------- | :------: | :------------------------------------------------------------- |
+| `url`     | `string` |   yes    | Connection URL (`redis://...`, `valkey://...`, or `rediss://`) |
+| `source`  | `string` | optional | Alternative alias for `url`                                    |

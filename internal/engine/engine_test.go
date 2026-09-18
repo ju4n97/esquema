@@ -1,214 +1,152 @@
-package engine_test
+package engine
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	_ "modernc.org/sqlite"
-
-	"github.com/ju4n97/hclapi"
+	"github.com/ju4n97/hclapi/internal/manifest"
 )
 
-// setupSQLiteDB initializes an isolated in-memory SQLite table for end-to-end testing.
-func setupSQLiteDB(t *testing.T, dbName string) string {
-	t.Helper()
-	source := fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)
-
-	db, err := sql.Open("sqlite", source)
-	if err != nil {
-		t.Fatalf("failed to open sqlite database: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	schema := `
-		CREATE TABLE users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			email TEXT UNIQUE NOT NULL,
-			role TEXT NOT NULL DEFAULT 'member'
-		);
-		INSERT INTO users (email, role) VALUES ('alice@example.com', 'admin');
-	`
-	if _, err := db.Exec(schema); err != nil {
-		t.Fatalf("failed to seed database: %v", err)
-	}
-
-	return source
-}
-
-// TestEngine_FullPipelineExecution verifies SQL query execution, Starlark, and conditional responses.
-func TestEngine_FullPipelineExecution(t *testing.T) {
+// TestEngine_LifecycleAndEndToEndExecution verifies engine boot, routing, pools, and clean shutdown.
+func TestEngine_LifecycleAndEndToEndExecution(t *testing.T) {
 	t.Parallel()
 
-	dbSource := setupSQLiteDB(t, "pipeline_exec_db")
-
-	manifestContent := fmt.Sprintf(`
+	hclContent := `
 server {
-  host = "127.0.0.1"
-  port = 8080
+  host          = "127.0.0.1"
+  port          = 8080
+  max_body_size = "10MB"
 }
 
-connection "sql" "main" {
+openapi {
+  title   = "Test Engine API"
+  version = "1.0.0"
+}
+
+connection "sql" "primary" {
   engine = "sqlite"
-  source = %q
+  source = "file::memory:?cache=shared"
 }
 
-route "POST /users" {
-  request {
-    body {
-      field "email" {
-        type     = "string"
-        format   = "email"
-        required = true
-      }
-    }
-  }
-
-  step "starlark" "normalize" {
-    source = <<-PYTHON
-      def execute(ctx):
-          email = ctx["request"]["body"].get("email", "")
-          return {"clean_email": email.strip().lower()}
-    PYTHON
-  }
-
-  step "sql" "insert" {
-    connection = "main"
-    query      = "INSERT INTO users (email) VALUES (@email) RETURNING id, email, role"
+route "POST /compute" {
+  go "multiply" {
+    use = "math.multiply"
     args = {
-      email = steps.normalize.result.clean_email
-    }
-    catch "19" {
-      status = 409
-      body   = problem(409, "User already registered")
-    }
-  }
-
-  respond {
-    status = 201
-    body   = steps.insert.row
-  }
-}
-
-route "GET /users/{id}" {
-  request {
-    path "id" {
-      type     = "integer"
-      required = true
-    }
-  }
-
-  step "sql" "fetch" {
-    connection = "main"
-    query      = "SELECT id, email, role FROM users WHERE id = @id"
-    args = {
-      id = ctx.request.path.id
-    }
-  }
-
-  respond {
-    when   = steps.fetch.rows_affected == 0
-    status = 404
-    body   = problem(404, "User not found")
-  }
-
-  respond {
-    status = 200
-    body   = steps.fetch.row
-  }
-}
-
-route "GET /compute" {
-  step "go" "math" {
-    use = "math.double"
-    args = {
-      value = 21
+      val = 21
     }
   }
 
   respond {
     status = 200
-    body   = steps.math.result
+    body   = steps.multiply.result
   }
 }
-`, dbSource)
 
-	cfg, err := hclapi.Parse(manifestContent)
+route "GET /spec.json" {
+  spec {
+    format = "json"
+  }
+}
+`
+
+	m, err := manifest.Parse(hclContent)
 	if err != nil {
-		t.Fatalf("failed to parse manifest: %v", err)
+		t.Fatalf("Parse() error: %v", err)
 	}
 
-	doubleHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
-		val := step.Args.GetOr("value", int64(0))
+	multHandler := func(ctx context.Context, req *manifest.GoRequest) (any, error) {
+		val := req.Args.GetOr("val", int64(1))
 		return map[string]any{"doubled": val * 2}, nil
 	}
 
-	eng, err := hclapi.New(cfg, hclapi.WithStep("math.double", doubleHandler))
+	eng, err := New(m, WithGoHandler("math.multiply", multHandler))
 	if err != nil {
-		t.Fatalf("failed to initialize engine: %v", err)
+		t.Fatalf("New() unexpected error: %v", err)
 	}
 	t.Cleanup(func() { _ = eng.Close() })
 
-	t.Run("inserts record through starlark and sql steps", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(`{"email":"  BOB@EXAMPLE.COM  "}`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
+	t.Run("executes pipeline endpoint through ServeHTTP", func(t *testing.T) {
+		t.Parallel()
 
-		eng.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusCreated {
-			t.Fatalf("status = %d; want 201 Created", rec.Code)
-		}
-
-		var body map[string]any
-		_ = json.NewDecoder(rec.Body).Decode(&body)
-		if body["email"] != "bob@example.com" {
-			t.Errorf("normalized email = %v; want 'bob@example.com'", body["email"])
-		}
-	})
-
-	t.Run("catches sqlite constraint violation and emits problem response", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(`{"email":"alice@example.com"}`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-
-		eng.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusConflict {
-			t.Fatalf("status = %d; want 409 Conflict", rec.Code)
-		}
-	})
-
-	t.Run("evaluates conditional when expression returning 404", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/users/9999", http.NoBody)
-		rec := httptest.NewRecorder()
-
-		eng.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("status = %d; want 404 Not Found", rec.Code)
-		}
-	})
-
-	t.Run("executes registered Go step handler", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/compute", http.NoBody)
+		req := httptest.NewRequest(http.MethodPost, "/compute", strings.NewReader(`{}`))
 		rec := httptest.NewRecorder()
 
 		eng.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d; want 200 OK", rec.Code)
+			t.Fatalf("Status = %d, want 200", rec.Code)
 		}
 
-		var body map[string]any
-		_ = json.NewDecoder(rec.Body).Decode(&body)
-		if body["doubled"] != float64(42) && body["doubled"] != int64(42) {
-			t.Errorf("doubled = %v; want 42", body["doubled"])
+		if !strings.Contains(rec.Body.String(), `"doubled":42`) {
+			t.Errorf("expected response to contain doubled:42, got %s", rec.Body.String())
+		}
+	})
+
+	t.Run("serves precompiled openapi specification", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodGet, "/spec.json", http.NoBody)
+		rec := httptest.NewRecorder()
+
+		eng.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Status = %d, want 200", rec.Code)
+		}
+
+		var spec map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+			t.Fatalf("failed to decode specification JSON: %v", err)
+		}
+
+		if spec["openapi"] != "3.1.0" {
+			t.Errorf("expected openapi '3.1.0', got %v", spec["openapi"])
+		}
+	})
+
+	t.Run("provides direct access to managed SQL pool", func(t *testing.T) {
+		t.Parallel()
+
+		db, ok := eng.SQL("primary")
+		if !ok || db == nil {
+			t.Fatal("expected 'primary' SQL pool to be accessible")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		if err := db.PingContext(ctx); err != nil {
+			t.Fatalf("ping database failed: %v", err)
+		}
+	})
+
+	t.Run("Close cleanly terminates connection pools", func(t *testing.T) {
+		t.Parallel()
+
+		mCopy, pErr := manifest.Parse(hclContent)
+		if pErr != nil {
+			t.Fatalf("parse error: %v", pErr)
+		}
+
+		tempEng, err := New(mCopy)
+		if err != nil {
+			t.Fatalf("New() error: %v", err)
+		}
+
+		db, _ := tempEng.SQL("primary")
+
+		if err := tempEng.Close(); err != nil {
+			t.Fatalf("Close() error: %v", err)
+		}
+
+		// Pool should be closed
+		if err := db.Ping(); err == nil {
+			t.Fatal("expected closed database pool to reject ping, got nil")
 		}
 	})
 }

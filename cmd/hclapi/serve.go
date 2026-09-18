@@ -17,7 +17,6 @@ import (
 	"github.com/ju4n97/hclapi"
 )
 
-// newServeCommand starts the HTTP API service.
 func newServeCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "serve",
@@ -28,7 +27,7 @@ func newServeCommand() *cli.Command {
 			&cli.StringSliceFlag{
 				Name:    "config",
 				Aliases: []string{"c", "manifests", "m"},
-				Usage:   "Manifest file, directory, or glob pattern (can be specified multiple times)",
+				Usage:   "Manifest file, directory, or glob pattern (repeatable)",
 				Sources: cli.EnvVars("HCLAPI_CONFIG", "HCLAPI_MANIFESTS"),
 			},
 			&cli.StringFlag{
@@ -67,34 +66,49 @@ func newServeCommand() *cli.Command {
 			patterns := resolvePatterns(cmd)
 			logger.Info("compiling hclapi manifests", "targets", patterns)
 
-			cfg, err := hclapi.Load(patterns...)
+			m, err := hclapi.Load(patterns...)
 			if err != nil {
 				return fmt.Errorf("manifest compilation failed:\n%w", err)
 			}
 
 			if cmd.IsSet("host") {
-				cfg.Server.Host = cmd.String("host")
+				m.Server.Host = cmd.String("host")
 			}
 			if cmd.IsSet("port") {
-				cfg.Server.Port = cmd.Int("port")
+				m.Server.Port = cmd.Int("port")
 			}
 
-			engine, err := hclapi.New(cfg)
+			// Propagate CLI log flags into manifest telemetry configuration
+			if cmd.Bool("verbose") {
+				m.Telemetry.LogLevel = "debug"
+			} else if cmd.IsSet("log-level") {
+				m.Telemetry.LogLevel = cmd.String("log-level")
+			}
+			if cmd.IsSet("log-format") {
+				m.Telemetry.LogFormat = cmd.String("log-format")
+			}
+
+			app, err := hclapi.New(m)
 			if err != nil {
 				return fmt.Errorf("engine initialization failed: %w", err)
 			}
 			defer func() {
-				if closeErr := engine.Close(); closeErr != nil {
+				if closeErr := app.Close(); closeErr != nil {
 					logger.Warn("failed to cleanly close connection pools", "error", closeErr)
 				}
 			}()
 
-			addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+			// Align top-level daemon logger with engine telemetry instance
+			if app.Telemetry() != nil {
+				logger = app.Telemetry().Logger()
+			}
+
+			addr := fmt.Sprintf("%s:%d", m.Server.Host, m.Server.Port)
 			srv := &http.Server{
 				Addr:         addr,
-				Handler:      engine,
-				ReadTimeout:  cfg.Server.ReadTimeout.Duration(),
-				WriteTimeout: cfg.Server.WriteTimeout.Duration(),
+				Handler:      app,
+				ReadTimeout:  m.Server.ReadTimeout.Duration(),
+				WriteTimeout: m.Server.WriteTimeout.Duration(),
 			}
 
 			sigCtx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -102,17 +116,17 @@ func newServeCommand() *cli.Command {
 
 			errCh := make(chan error, 1)
 			go func() {
-				logger.Info("server listening", "addr", addr, "endpoints", len(cfg.Endpoints))
-				if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-					errCh <- err
+				logger.Info("server listening", "addr", addr, "routes", len(m.Routes), "connections", len(m.Connections))
+				if listenErr := srv.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+					errCh <- listenErr
 				}
 			}()
 
 			select {
-			case err := <-errCh:
-				return fmt.Errorf("server crashed: %w", err)
+			case srvErr := <-errCh:
+				return fmt.Errorf("server crashed: %w", srvErr)
 			case <-sigCtx.Done():
-				logger.Info("shutting down server...")
+				logger.Info("shutting down server gracefully...")
 			}
 
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -143,11 +157,9 @@ func initLogger(cmd *cli.Command) *slog.Logger {
 
 	opts := &slog.HandlerOptions{Level: level}
 
-	var handler slog.Handler
+	var handler slog.Handler = slog.NewTextHandler(os.Stdout, opts)
 	if strings.EqualFold(cmd.String("log-format"), "json") {
 		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
 
 	return slog.New(handler)

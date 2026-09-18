@@ -9,19 +9,17 @@ hclapi compiles its configuration from a single file, a folder, or glob patterns
 
 ## File discovery
 
-When pointing hclapi at a directory, the loader finds all files ending in `.hcl`.
-
-It automatically skips hidden files or folders starting with a dot, such as `.git` or `.vscode`. Non-manifest files like `.sql` or `.md` aren't loaded.
+When pointing hclapi at a directory, the loader recursively discovers all files ending in `.hcl`. Hidden files or directories starting with a dot (`.git`, `.vscode`) are automatically skipped.
 
 ## The .hclapiignore file
 
-Place a `.hclapiignore` file in your root folder to skip specific files or directories. It supports wildcard matching and negation patterns using `!`:
+Place a `.hclapiignore` file in your root folder to ignore specific files or paths:
 
 ```text
 # Skip temporary folders
 scratch/
 
-# Skip local configs
+# Skip local overrides
 local.hcl
 
 # Skip drafts but keep preview
@@ -31,7 +29,7 @@ drafts/*
 
 ## Environment variables
 
-You can read environment variables during compile time using the `env` function:
+Read environment variables during compilation or request execution using the `env` function:
 
 ```hcl
 server {
@@ -44,15 +42,13 @@ connection "sql" "main" {
 }
 ```
 
-If a variable isn't set, it evaluates to an empty string.
-
 ## Merging rules and invariants
 
 hclapi merges manifests across all discovered files into a single runtime configuration:
 
-1. **Singleton blocks**: The `server`, `openapi`, and `telemetry` blocks are singletons. You can't declare `server` in more than one file across a project.
-2. **Duplicate routes**: Endpoints are identified by method and path, such as `GET /users`. Declaring the exact same route pattern in two files halts boot immediately so you won't get runtime routing collisions.
-3. **Shared namespace**: Connections and schemas share a single global namespace. A connection declared in `connections.hcl` is instantly available to routes declared in `routes/users.hcl`.
+1. **Singleton blocks**: The `server`, `openapi`, and `telemetry` blocks are singletons. Declaring `server` in more than one file halts boot with an error.
+2. **Duplicate routes**: Endpoints are identified by method and path, such as `GET /users`. Declaring identical route patterns across manifests halts boot immediately.
+3. **Shared namespace**: Connections and schemas share a single global namespace. A connection declared in `connections.hcl` is instantly accessible to routes in `routes/users.hcl`.
 
 ## Recommended project layout
 

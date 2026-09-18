@@ -24,7 +24,7 @@ hclapi [GLOBAL OPTIONS] [command [COMMAND OPTIONS]] [ARGUMENTS...]
 
 Start the HTTP API server from compiled manifests
 
-**--config, -c, --manifests, -m**="": Manifest file, directory, or glob pattern (can be specified multiple times)
+**--config, -c, --manifests, -m**="": Manifest file, directory, or glob pattern (repeatable)
 
 **--host, -H**="": Host address to bind the listener (overrides manifest)
 

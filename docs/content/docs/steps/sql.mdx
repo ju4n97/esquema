@@ -5,10 +5,10 @@ description: Execute parameterized queries with dialect translation and error ca
 
 # sql
 
-The `sql` step executes a prepared SQL statement against a declared database pool.
+The `sql` step executes a prepared SQL statement against a declared database connection pool.
 
 ```hcl
-step "sql" "create_user" {
+sql "create_user" {
   connection = "main"
   query      = <<-SQL
     INSERT INTO users (email, role)
@@ -19,7 +19,9 @@ step "sql" "create_user" {
     email = ctx.request.body.email
     role  = "member"
   }
-  catch "23505" {
+
+  catch {
+    code   = "23505"
     status = 409
     body   = problem(409, "User already registered")
   }
@@ -28,47 +30,65 @@ step "sql" "create_user" {
 
 ## Attributes
 
-| Attribute        | Type     | Required | Description                                                      |
-| :--------------- | :------- | :------: | :--------------------------------------------------------------- |
-| `connection`     | `string` |   yes    | Connection pool name declared in `connection "sql"`              |
-| `query`          | `string` |   yes    | SQL query or statement using `@param` placeholders               |
-| `args`           | `map`    |    no    | Context values bound to `@param` placeholders                    |
-| `when`           | `bool`   |    no    | Conditional expression; step is skipped if it evaluates to false |
-| `catch "<code>"` | `block`  |    no    | Catches database error codes and halts the pipeline              |
+| Attribute    | Type     | Required | Description                                                      |
+| :----------- | :------- | :------: | :--------------------------------------------------------------- |
+| `connection` | `string` |   yes    | Connection pool name declared in `connection "sql"`              |
+| `query`      | `string` |   yes    | SQL query or statement using `@param` placeholders               |
+| `args`       | `map`    |    no    | Context values bound to `@param` placeholders                    |
+| `when`       | `bool`   |    no    | Conditional expression; step is skipped if it evaluates to false |
+| `stream`     | `bool`   |    no    | When `true`, streams rows via `steps.<name>.stream` iterator     |
+| `catch`      | `block`  |    no    | Intercepts database driver errors (repeatable)                   |
 
 ## Exported outputs
 
-| Field                        | Type    | Description                                       |
-| :--------------------------- | :------ | :------------------------------------------------ |
-| `steps.<name>.rows`          | `[]map` | All returned rows, or an empty list if none match |
-| `steps.<name>.row`           | `map`   | The first returned row, or `null` if none match   |
-| `steps.<name>.rows_affected` | `int`   | Rows returned, inserted, updated, or deleted      |
+| Field                        | Type        | Description                                                   |
+| :--------------------------- | :---------- | :------------------------------------------------------------ |
+| `steps.<name>.rows`          | `[]map`     | All returned rows, or an empty list if none match             |
+| `steps.<name>.row`           | `map`       | The first returned row, or `null` if none match               |
+| `steps.<name>.rows_affected` | `int`       | Number of rows scanned, inserted, updated, or deleted         |
+| `steps.<name>.stream`        | `iter.Seq2` | Go iterator yielding rows; produced only when `stream = true` |
 
 ## Parameter binding
 
 You don't need to change query placeholders between database engines. Write parameters using `@name`, and hclapi rewrites them automatically based on the connection's engine:
 
-- **`postgres`**: Rewritten to `$1`, `$2`, etc.
-- **`sqlserver`**: Rewritten to `@p1`, `@p2`, etc.
-- **`sqlite` and `mysql`**: Rewritten to `?`.
+- **`postgres`**: Bound natively using `pgx.NamedArgs` (or `$1`, `$2` if positional slice passed).
+- **`sqlserver` and `sqlite`**: Bound natively via `sql.Named("name", value)`.
+- **`mysql`**: Rewritten at boot time to positional `?` placeholders with sliced parameters.
 
-The query rewriter uses single pass token parsing. It won't touch `@` characters inside string literals like `'admin@example.com'`, comments like `-- @todo`, or operators like `@>`.
+The lexer uses single-pass token parsing. It preserves `@` characters inside string literals like `'admin@example.com'`, comments like `-- @todo`, and operators like `@>`.
 
 ## Catching database errors
 
-If a query fails, hclapi checks matching `catch` blocks before returning a 500 error. When an error code matches, it halts the pipeline and returns the configured problem payload:
+If a query fails, hclapi evaluates declared `catch` blocks in order before returning a 500 error:
 
 ```hcl
-catch "23505" {
-  status = 409
-  body   = problem(409, "An account with this email already exists")
+sql "insert_item" {
+  connection = "main"
+  query      = "INSERT INTO items (sku, price) VALUES (@sku, @price)"
+  args = {
+    sku   = ctx.request.body.sku
+    price = ctx.request.body.price
+  }
+
+  # Match by driver-specific error code
+  catch {
+    code   = "23505"
+    status = 409
+    body   = problem(409, "SKU already exists")
+  }
+
+  # Match by named database constraint
+  catch {
+    constraint = "items_sku_key"
+    status     = 409
+    body       = problem(409, "SKU duplicate")
+  }
+
+  # Match by error message substring
+  catch {
+    match  = "UNIQUE constraint failed"
+    status = 409
+  }
 }
 ```
-
-### Common error codes
-
-| Error condition           | PostgreSQL | SQLite |  MySQL   | SQL Server |
-| :------------------------ | :--------: | :----: | :------: | :--------: |
-| **Unique violation**      | `"23505"`  | `"19"` | `"1062"` |  `"2627"`  |
-| **Foreign key violation** | `"23503"`  | `"19"` | `"1452"` |  `"547"`   |
-| **Not null violation**    | `"23502"`  | `"19"` | `"1048"` |  `"515"`   |

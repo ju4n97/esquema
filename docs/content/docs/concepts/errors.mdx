@@ -5,9 +5,7 @@ description: RFC 9457 Problem Details error generation, structure, and automatic
 
 # Errors and problem details
 
-hclapi uses [RFC 9457 Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457) for all error responses. Error payloads use the standard `application/problem+json` media type.
-
-You won't get arbitrary error text or inconsistent JSON envelopes. Errors always return a structured object.
+hclapi implements [RFC 9457 Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457) for all error responses. Error payloads use the standard `application/problem+json` media type.
 
 ## Standard error payload
 
@@ -23,7 +21,7 @@ You won't get arbitrary error text or inconsistent JSON envelopes. Errors always
 | Field            | Type     | Description                                                   |
 | :--------------- | :------- | :------------------------------------------------------------ |
 | `type`           | `string` | URI identifier for the error type (`urn:hclapi:error:<slug>`) |
-| `title`          | `string` | Short human readable summary of the HTTP status code          |
+| `title`          | `string` | Short human-readable summary of the HTTP status code          |
 | `status`         | `int`    | Standard HTTP status code integer                             |
 | `detail`         | `string` | Explanation specific to this occurrence                       |
 | `invalid_params` | `list`   | Field validation failures, present on HTTP 422 errors         |
@@ -34,7 +32,8 @@ Use the built-in `problem(status, detail)` function inside `catch` blocks or con
 
 ```hcl
 # In SQL error catches
-catch "23505" {
+catch {
+  code   = "23505"
   status = 409
   body   = problem(409, "An account with this email already exists")
 }
@@ -47,13 +46,22 @@ respond {
 }
 ```
 
+## Returning Problem Details from native Go handlers
+
+If a native Go step handler returns an instance of `problem.Problem`, the runtime halts the pipeline and streams it directly to the client:
+
+```go
+func handlePayment(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+    if !hasSufficientBalance() {
+        return nil, problem.New(http.StatusPaymentRequired, "Insufficient account balance")
+    }
+    return map[string]any{"status": "paid"}, nil
+}
+```
+
 ## Automatic runtime error responses
 
-hclapi generates Problem Details automatically when standard checks fail:
-
 ### Malformed JSON (HTTP 400)
-
-Returned when incoming request bodies contain broken JSON syntax:
 
 ```json
 {
@@ -66,8 +74,6 @@ Returned when incoming request bodies contain broken JSON syntax:
 
 ### Payload too large (HTTP 413)
 
-Returned when a request body exceeds `server.max_body_size`:
-
 ```json
 {
   "type": "urn:hclapi:error:request-entity-too-large",
@@ -79,7 +85,7 @@ Returned when a request body exceeds `server.max_body_size`:
 
 ### Validation errors (HTTP 422)
 
-Returned when incoming data violates schema rules. All failures return together inside `invalid_params`:
+Returned when incoming coordinates violate schema constraints. All failures return grouped inside `invalid_params`:
 
 ```json
 {
@@ -96,8 +102,6 @@ Returned when incoming data violates schema rules. All failures return together 
 
 ### Unhandled step errors (HTTP 500)
 
-Returned when an unhandled database error occurs during step processing:
-
 ```json
 {
   "type": "urn:hclapi:error:internal-server-error",
@@ -109,7 +113,7 @@ Returned when an unhandled database error occurs during step processing:
 
 ### Recovered panics (HTTP 500)
 
-Returned when a custom Go step callback encounters a panic, such as a nil pointer dereference:
+When a Go handler or middleware encounters a panic, it is captured by the fault isolation boundary:
 
 ```json
 {
@@ -120,15 +124,15 @@ Returned when a custom Go step callback encounters a panic, such as a nil pointe
 }
 ```
 
-### Upstream failures (HTTP 502)
+### Gateway timeout (HTTP 504)
 
-Returned when an outbound `http` step or `valkey` connection drops unexpectedly:
+Returned when a client disconnects or an upstream context deadline is exceeded:
 
 ```json
 {
-  "type": "urn:hclapi:error:bad-gateway",
-  "title": "Bad Gateway",
-  "status": 502,
-  "detail": "step \"fetch_remote\" http call failed: dial tcp 10.0.0.1:443: connect: connection refused"
+  "type": "urn:hclapi:error:gateway-timeout",
+  "title": "Gateway Timeout",
+  "status": 504,
+  "detail": "Client request canceled"
 }
 ```

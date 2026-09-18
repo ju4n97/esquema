@@ -5,7 +5,7 @@ description: Serve compiled OpenAPI 3.1 specifications with ETag caching.
 
 # spec
 
-The `spec` step serves the compiled OpenAPI 3.1 specification document in JSON or YAML format.
+The `spec` step serves the precompiled OpenAPI 3.1 specification document in JSON or YAML format. It is a terminal step that completes the request pipeline.
 
 ```hcl
 route "GET /openapi.json" {
@@ -29,6 +29,4 @@ route "GET /openapi.yaml" {
 
 ## ETag caching
 
-Specifications are precomputed at boot time and hashed with SHA-256.
-
-Incoming requests containing a matching `If-None-Match` header receive an instant `304 Not Modified` response without regenerating or re-transmitting the document.
+Specifications are precomputed at boot time and hashed with SHA-256. Incoming requests containing a matching `If-None-Match` header receive an instant `304 Not Modified` response without regenerating or re-transmitting the document.

@@ -1,22 +1,22 @@
 ---
 title: valkey
-description: Key-value caching operations against Valkey and Redis pools.
+description: Key-value caching operations and Pub/Sub subscriptions against Valkey and Redis pools.
 ---
 
 # valkey
 
-The `valkey` step runs caching commands against a declared `connection "valkey"` instance.
+The `valkey` step executes cache commands or Pub/Sub subscriptions against a declared `connection "valkey"` instance.
 
 ```hcl
 # Read from cache
-step "valkey" "check_cache" {
+valkey "check_cache" {
   connection = "cache"
   op         = "get"
   key        = "users:${ctx.request.path.id}"
 }
 
 # Write with TTL
-step "valkey" "save_cache" {
+valkey "save_cache" {
   connection = "cache"
   op         = "set"
   key        = "users:${ctx.request.path.id}"
@@ -25,23 +25,31 @@ step "valkey" "save_cache" {
 }
 
 # Delete key
-step "valkey" "purge" {
+valkey "purge" {
   connection = "cache"
   op         = "del"
   key        = "users:${ctx.request.path.id}"
+}
+
+# Real-time Pub/Sub subscription
+valkey "live_alerts" {
+  connection = "cache"
+  op         = "subscribe"
+  channel    = "system.alerts"
 }
 ```
 
 ## Attributes
 
-| Attribute    | Type       | Required | Description                                 |
-| :----------- | :--------- | :------: | :------------------------------------------ |
-| `connection` | `string`   |   yes    | Declared `connection "valkey"` identifier   |
-| `op`         | `string`   |   yes    | `"get"`, `"set"`, or `"del"`                |
-| `key`        | `string`   |   yes    | Cache key expression                        |
-| `value`      | `any`      | for set  | Payload serialized as a JSON string         |
-| `ttl`        | `Duration` |    no    | Expiration duration like `"10m"` or `"24h"` |
-| `when`       | `bool`     |    no    | Conditional expression                      |
+| Attribute    | Type       |    Required     | Description                                 |
+| :----------- | :--------- | :-------------: | :------------------------------------------ |
+| `connection` | `string`   |       yes       | Declared `connection "valkey"` identifier   |
+| `op`         | `string`   |       yes       | `"get"`, `"set"`, `"del"`, or `"subscribe"` |
+| `key`        | `string`   | for get/set/del | Cache key expression                        |
+| `value`      | `any`      |     for set     | Payload serialized as a JSON string         |
+| `channel`    | `string`   |     for sub     | Pub/Sub channel name expression             |
+| `ttl`        | `Duration` |       no        | Expiration duration like `"10m"` or `"24h"` |
+| `when`       | `bool`     |       no        | Conditional expression                      |
 
 ## Exported outputs
 
@@ -50,10 +58,10 @@ step "valkey" "purge" {
 - `steps.<name>.found`: `true` if the key exists, `false` on a cache miss.
 - `steps.<name>.value`: Unmarshaled JSON data, or `null` if missing.
 
-A cache miss doesn't return an error. It sets `found = false` so you can fall back to database queries conditionally:
+A cache miss sets `found = false` without an error, allowing conditional fallbacks:
 
 ```hcl
-step "sql" "fetch_db" {
+sql "fetch_db" {
   when       = !steps.check_cache.found
   connection = "main"
   query      = "SELECT id, email FROM users WHERE id = @id"
@@ -64,3 +72,7 @@ step "sql" "fetch_db" {
 ### For `op = "set"` and `op = "del"`
 
 - `steps.<name>.success`: `true` when the operation succeeds.
+
+### For `op = "subscribe"`
+
+- `steps.<name>.stream`: An `iter.Seq2[any, error]` iterator yielding real-time messages. Pipe this directly into a terminal `stream "sse"` step.

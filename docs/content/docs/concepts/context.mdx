@@ -5,7 +5,7 @@ description: The request-scoped ctx container and how steps access execution dat
 
 # Execution context
 
-Every request initializes a request-scoped `ctx` container. It stores incoming request parameters alongside outputs recorded by previous pipeline steps.
+Every request initializes an execution context container. It stores incoming request coordinates, frozen timestamps, and the outputs produced by executed pipeline steps.
 
 ```text
 ctx
@@ -13,8 +13,8 @@ ctx
 ├── now       : string (RFC 3339 UTC timestamp)
 └── request
     ├── method  : string ("GET", "POST", etc.)
-    ├── path    : map[string]any (typed path parameters)
-    ├── query   : map[string]any (typed query parameters)
+    ├── path    : map[string]any (coerced int64, float64, bool, or string)
+    ├── query   : map[string]any (coerced scalar or []any)
     ├── headers : map[string]string (lowercased header values)
     └── body    : map[string]any (parsed JSON body or raw text)
 
@@ -22,12 +22,13 @@ steps
 └── <step_name>
     ├── rows          : list of map (all returned SQL rows)
     ├── row           : map or null (first SQL row)
-    ├── rows_affected : int (number of rows returned or updated)
+    ├── rows_affected : int (number of rows returned, inserted, or updated)
     ├── status        : int (outbound HTTP status code)
-    ├── body          : any (outbound HTTP response body)
+    ├── body          : any (outbound HTTP response payload)
     ├── found         : bool (Valkey cache hit flag)
-    ├── value         : any (Valkey cached payload)
+    ├── value         : any (Valkey cached payload or null)
     ├── success       : bool (Valkey write or delete flag)
+    ├── stream        : iterator or reader (from streaming sql, valkey, or http steps)
     └── result        : any (value returned by Starlark or Go steps)
 ```
 
@@ -36,7 +37,7 @@ steps
 You can access context coordinates directly using standard dot syntax in step attributes:
 
 ```hcl
-step "sql" "update_user" {
+sql "update_user" {
   connection = "main"
   query      = "UPDATE users SET email = @email WHERE id = @id"
   args = {
@@ -46,7 +47,7 @@ step "sql" "update_user" {
 }
 ```
 
-Headers are normalized to lowercase per RFC 9110, so `X-API-Key` is accessed via `ctx.request.headers.x-api-key`.
+Headers are normalized to lowercase per RFC 9110 (`ctx.request.headers.x-api-key`).
 
 ## Accessing data in Starlark
 
@@ -62,19 +63,37 @@ def execute(ctx):
         "user_id": user_id,
         "email": body.get("email", "").strip().lower(),
         "role": user_row.get("role", "member"),
+        "processed_at": ctx["now"],
     }
 ```
 
 ## Accessing data in native Go steps
 
-In Go callbacks, extract parameters safely using `step.Args`:
+In Go callbacks, extract parameters safely using `req.Args`:
 
 ```go
-func handleStep(ctx context.Context, step *hclapi.Step) (any, error) {
-    userID := step.Args.GetOr("id", int64(0))
-    email, ok := step.Args.Get[string]("email")
-    rawRequest := step.Request // Untouched standard *http.Request
+func handleStep(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+    userID := req.Args.GetOr("id", int64(0))
+    email, ok := req.Args.Get[string]("email")
+    rawRequest := req.Request // Raw standard *http.Request
 
     return map[string]any{"id": userID, "email": email}, nil
+}
+```
+
+## Streaming context outputs (`steps.<name>.stream`)
+
+When steps operate in streaming mode, they publish an iterator or reader under `steps.<name>.stream`:
+
+- **`sql "fetch" { stream = true ... }`**: Publishes a `manifest.RecordSeq` (`iter.Seq2[any, error]`) that streams rows on-demand.
+- **`valkey "sub" { op = "subscribe" channel = ... }`**: Publishes a live `manifest.RecordSeq` stream of pub/sub messages.
+- **`http "proxy" { stream = true ... }`**: Publishes the live upstream socket as an `io.ReadCloser`.
+
+Pipe these streams directly into a terminal `stream` step without buffering:
+
+```hcl
+stream "sse" {
+  source = steps.sub.stream
+  event  = "update"
 }
 ```

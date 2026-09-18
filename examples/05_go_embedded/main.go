@@ -14,7 +14,7 @@ import (
 	"github.com/ju4n97/hclapi"
 )
 
-// marsOrbitalPeriodRatio is how many Earth years it takes Mars to orbit the Sun once.
+// marsOrbitalPeriodRatio is the ratio of Earth's orbital period to Mars's orbital period.
 const marsOrbitalPeriodRatio = 1.8808
 
 func main() {
@@ -29,13 +29,13 @@ func run() error {
 		Level: slog.LevelInfo,
 	}))
 
-	config, err := hclapi.Load(".")
+	manifest, err := hclapi.Load(".")
 	if err != nil {
 		return fmt.Errorf("load manifests: %w", err)
 	}
 
-	marsAgeHandler := func(ctx context.Context, step *hclapi.Step) (any, error) {
-		earthYears, ok := step.Args.Get[float64]("earth_years")
+	marsAgeHandler := func(ctx context.Context, req *hclapi.GoRequest) (any, error) {
+		earthYears, ok := req.Args.Get[float64]("earth_years")
 		if !ok {
 			return nil, errors.New("missing or invalid 'earth_years' argument")
 		}
@@ -46,8 +46,7 @@ func run() error {
 		}, nil
 	}
 
-	engine, err := hclapi.New(config,
-		hclapi.WithLogger(logger),
+	engine, err := hclapi.New(manifest,
 		hclapi.WithStep("astronomy.mars_age", marsAgeHandler),
 	)
 	if err != nil {
@@ -63,10 +62,10 @@ func run() error {
 	mux.Handle("/", engine)
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", manifest.Server.Host, manifest.Server.Port),
 		Handler:      mux,
-		ReadTimeout:  config.Server.ReadTimeout.Duration(),
-		WriteTimeout: config.Server.WriteTimeout.Duration(),
+		ReadTimeout:  manifest.Server.ReadTimeout.Duration(),
+		WriteTimeout: manifest.Server.WriteTimeout.Duration(),
 	}
 
 	stop := make(chan os.Signal, 1)
@@ -75,7 +74,7 @@ func run() error {
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("server listening", "addr", server.Addr)
-		if err := server.ListenAndServe(); err != nil {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()
