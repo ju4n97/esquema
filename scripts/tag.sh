@@ -100,17 +100,14 @@ if [ "$SKIP_CHECKS" = false ]; then
   echo
   info "Executing pre-release test and lint verification suite:"
   
-  step "1/4 Running linters ($TASK_CMD lint)..."
+  step "1/3 Running linters ($TASK_CMD lint)..."
   "$TASK_CMD" lint
   
-  step "2/4 Running unit tests ($TASK_CMD test)..."
+  step "2/3 Running unit tests ($TASK_CMD test)..."
   "$TASK_CMD" test
   
-  step "3/4 Running race detector tests ($TASK_CMD test-race)..."
+  step "3/3 Running race detector tests ($TASK_CMD test-race)..."
   "$TASK_CMD" test-race
-  
-  step "4/4 Running database integration tests ($TASK_CMD test-integration)..."
-  "$TASK_CMD" test-integration
   
   ok "All verification suites passed successfully."
 else

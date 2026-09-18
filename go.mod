@@ -2,6 +2,10 @@ module github.com/ju4n97/hclapi
 
 go 1.27.1
 
+retract (
+	[v0.1.0, v0.1.7]
+)
+
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/getkin/kin-openapi v0.149.0
