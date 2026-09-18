@@ -290,6 +290,37 @@ route "GET /order-check/{id}" {
 	}
 }
 
+func TestParse_RequestFieldDefaults(t *testing.T) {
+	t.Parallel()
+
+	hclContent := `
+route "GET /test" {
+  request {
+    query "id_servicio" {
+      type    = integer
+      default = 0
+    }
+  }
+  respond {
+    status = 200
+  }
+}
+`
+	m, err := Parse(hclContent)
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	field, ok := m.Routes[0].Request.Query["id_servicio"]
+	if !ok {
+		t.Fatal("expected 'id_servicio' query field in request rules")
+	}
+
+	if field.Default != int64(0) {
+		t.Errorf("field.Default = %v (%T), want int64(0)", field.Default, field.Default)
+	}
+}
+
 // TestParse_CustomStepRegistration verifies that embedders can register custom direct keywords.
 func TestParse_CustomStepRegistration(t *testing.T) {
 	t.Parallel()

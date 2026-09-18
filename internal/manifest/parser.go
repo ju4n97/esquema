@@ -481,6 +481,14 @@ func resolveRequest(body hcl.Body, evalCtx *hcl.EvalContext) (*Request, error) {
 				Enum:        fd.Enum,
 			}
 
+			if fd.DefaultExpr != nil {
+				val, dDiags := fd.DefaultExpr.Value(evalCtx)
+				if dDiags.HasErrors() {
+					return nil, fmt.Errorf("request %s %q default: %w", b.Type, fd.Name, dDiags)
+				}
+				f.Default = toNative(val)
+			}
+
 			switch b.Type {
 			case "path":
 				rules.Path[f.Name] = f
@@ -508,7 +516,7 @@ func resolveRequest(body hcl.Body, evalCtx *hcl.EvalContext) (*Request, error) {
 					return nil, err
 				}
 
-				rules.Body[fd.Name] = Field{
+				f := Field{
 					Name:        fd.Name,
 					Type:        spec,
 					Required:    fd.Required,
@@ -520,6 +528,16 @@ func resolveRequest(body hcl.Body, evalCtx *hcl.EvalContext) (*Request, error) {
 					MaxLength:   fd.MaxLength,
 					Enum:        fd.Enum,
 				}
+
+				if fd.DefaultExpr != nil {
+					val, dDiags := fd.DefaultExpr.Value(evalCtx)
+					if dDiags.HasErrors() {
+						return nil, fmt.Errorf("request body field %q default: %w", fd.Name, dDiags)
+					}
+					f.Default = toNative(val)
+				}
+
+				rules.Body[fd.Name] = f
 			}
 		}
 	}

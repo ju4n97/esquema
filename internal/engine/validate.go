@@ -63,6 +63,9 @@ func ValidateIngress(ctx *Context, rules *manifest.Request, schemas map[string]m
 					Name:   "query." + name,
 					Reason: "query parameter is required",
 				})
+			} else {
+				// Ensure optional query params evaluate safely to null in HCL
+				ctx.SetQueryParam(name, nil)
 			}
 			continue
 		}
@@ -136,11 +139,20 @@ func ValidateIngress(ctx *Context, rules *manifest.Request, schemas map[string]m
 		lookup := strings.ToLower(name)
 		val, exists := ctx.headers[lookup]
 		if !exists || val == "" {
+			if field.Default != nil {
+				if s, ok := field.Default.(string); ok {
+					ctx.headers[lookup] = s
+					continue
+				}
+			}
 			if field.Required {
 				invalidParams = append(invalidParams, problem.InvalidParam{
 					Name:   "header." + name,
 					Reason: "header is required",
 				})
+			} else {
+				// Ensure optional header evaluates safely as empty string
+				ctx.headers[lookup] = ""
 			}
 			continue
 		}
@@ -186,6 +198,8 @@ func ValidateIngress(ctx *Context, rules *manifest.Request, schemas map[string]m
 						Name:   path,
 						Reason: "field is required",
 					})
+				} else {
+					bodyMap[name] = nil
 				}
 				continue
 			}
